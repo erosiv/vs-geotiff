@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
+import * as tiff from 'tiff'
 
 /**
  * Define the type of edits used in paw draw files.
@@ -30,12 +31,175 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
 		return new PawDrawDocument(uri, fileData, delegate);
 	}
 
+	static constructTIFF(
+		rawdata: Uint8Array
+	): Uint8Array {
+
+//		console.log(initialContent)
+
+		const ifd = tiff.decode(rawdata)[0]
+		const header_size = 70;
+
+		const width = ifd.width;
+		const height = ifd.height;
+		const image_size = width * height * 4;
+
+		const arr = new Uint8Array(header_size + image_size);
+		const view = new DataView(arr.buffer);
+		// BM magic number.
+		view.setUint16(0, 0x424D, false);
+		// File size.
+		view.setUint32(2, arr.length, true);
+		// Offset to image data.
+		view.setUint32(10, header_size, true);
+
+		// BITMAPINFOHEADER
+
+		// Size of BITMAPINFOHEADER
+		view.setUint32(14, 40, true);
+		// Width
+		view.setInt32(18, width, true);
+		// Height (signed because negative values flip
+		// the image vertically).
+		view.setInt32(22, height, true);
+		// Number of colour planes (colours stored as
+		// separate images; must be 1).
+		view.setUint16(26, 1, true);
+		// Bits per pixel.
+		view.setUint16(28, 32, true);
+		// Compression method, 6 = BI_ALPHABITFIELDS
+		view.setUint32(30, 6, true);
+		// Image size in bytes.
+		view.setUint32(34, image_size, true);
+		// Horizontal resolution, pixels per metre.
+		// This will be unused in this situation.
+		view.setInt32(38, 10000, true);
+		// Vertical resolution, pixels per metre.
+		view.setInt32(42, 10000, true);
+		// Number of colours. 0 = all
+		view.setUint32(46, 0, true);
+		// Number of important colours. 0 = all
+		view.setUint32(50, 0, true);
+
+		// Colour table. Because we used BI_ALPHABITFIELDS
+		// this specifies the R, G, B and A bitmasks.
+
+		// Red
+		view.setUint32(54, 0x000000FF, true);
+		// Green
+		view.setUint32(58, 0x0000FF00, true);
+		// Blue
+		view.setUint32(62, 0x00FF0000, true);
+		// Alpha
+		view.setUint32(66, 0xFF000000, true);
+
+		// Pixel data.
+		for (let w = 0; w < width; ++w) {
+			for (let h = 0; h < height; ++h) {
+				const offset = header_size + (h * width + w) * 4;
+				const val = ifd.data[h*width + w];
+				arr[offset + 0] = 255*val;  // R value
+				arr[offset + 1] = 255*val;  // G value
+				arr[offset + 2] = 255*val; 	// B value
+				arr[offset + 3] = 255*val; 	// A value
+			}
+		}
+
+		return arr
+
+	}
+
 	private static async readFile(uri: vscode.Uri): Promise<Uint8Array> {
 		if (uri.scheme === 'untitled') {
 			return new Uint8Array();
 		}
-		return new Uint8Array(await vscode.workspace.fs.readFile(uri));
+
+		const output = new Uint8Array(await vscode.workspace.fs.readFile(uri));
+		return this.constructTIFF(output)
+
 	}
+
+	/*
+	function constructTIFF(initialContent) {
+
+		console.log(initialContent)
+
+//		const ifd = tiff.decode(initialContent)
+//		console.log(ifd[0])
+
+		const header_size = 70;
+
+		const width = 255;
+		const height = 255;
+		const image_size = width * height * 4;
+
+		const arr = new Uint8Array(header_size + image_size);
+		const view = new DataView(arr.buffer);
+		// BM magic number.
+		view.setUint16(0, 0x424D, false);
+		// File size.
+		view.setUint32(2, arr.length, true);
+		// Offset to image data.
+		view.setUint32(10, header_size, true);
+
+		// BITMAPINFOHEADER
+
+		// Size of BITMAPINFOHEADER
+		view.setUint32(14, 40, true);
+		// Width
+		view.setInt32(18, width, true);
+		// Height (signed because negative values flip
+		// the image vertically).
+		view.setInt32(22, height, true);
+		// Number of colour planes (colours stored as
+		// separate images; must be 1).
+		view.setUint16(26, 1, true);
+		// Bits per pixel.
+		view.setUint16(28, 32, true);
+		// Compression method, 6 = BI_ALPHABITFIELDS
+		view.setUint32(30, 6, true);
+		// Image size in bytes.
+		view.setUint32(34, image_size, true);
+		// Horizontal resolution, pixels per metre.
+		// This will be unused in this situation.
+		view.setInt32(38, 10000, true);
+		// Vertical resolution, pixels per metre.
+		view.setInt32(42, 10000, true);
+		// Number of colours. 0 = all
+		view.setUint32(46, 0, true);
+		// Number of important colours. 0 = all
+		view.setUint32(50, 0, true);
+
+		// Colour table. Because we used BI_ALPHABITFIELDS
+		// this specifies the R, G, B and A bitmasks.
+
+		// Red
+		view.setUint32(54, 0x000000FF, true);
+		// Green
+		view.setUint32(58, 0x0000FF00, true);
+		// Blue
+		view.setUint32(62, 0x00FF0000, true);
+		// Alpha
+		view.setUint32(66, 0xFF000000, true);
+
+		// Pixel data.
+		for (let w = 0; w < width; ++w) {
+			for (let h = 0; h < height; ++h) {
+				const offset = header_size + (h * width + w) * 4;
+				arr[offset + 0] = w;     // R value
+				arr[offset + 1] = h;     // G value
+				arr[offset + 2] = 255-w; // B value
+				arr[offset + 3] = 255-h; // A value
+			}
+		}
+
+		const blob = new Blob([arr], { type: "image/bmp" });
+		const url = URL.createObjectURL(blob);
+
+		return url
+
+	}
+	*/
 
 	private readonly _uri: vscode.Uri;
 

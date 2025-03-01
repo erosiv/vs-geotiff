@@ -251,7 +251,7 @@
 					return;
 				}
 			case 'getFileData':
-				{
+				{			
 					// Get the image data for the canvas and post it back to the extension.
 					editor.getImageData().then(data => {
 						vscode.postMessage({ type: 'response', requestId, body: Array.from(data) });
