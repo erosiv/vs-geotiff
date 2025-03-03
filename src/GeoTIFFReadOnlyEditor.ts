@@ -3,32 +3,24 @@ import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
 
-/**
- * Define the type of edits used in paw draw files.
- */
-interface PawDrawEdit {
-	readonly color: string;
-	readonly stroke: ReadonlyArray<[number, number]>;
-}
-
-interface PawDrawDocumentDelegate {
+interface GeoTIFFDocumentDelegate {
 	getFileData(): Promise<Uint8Array>;
 }
 
 /**
  * Define the document (the data model) used for paw draw files.
  */
-class PawDrawDocument extends Disposable implements vscode.CustomDocument {
+class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 	static async create(
 		uri: vscode.Uri,
 		backupId: string | undefined,
-		delegate: PawDrawDocumentDelegate,
-	): Promise<PawDrawDocument | PromiseLike<PawDrawDocument>> {
+		delegate: GeoTIFFDocumentDelegate,
+	): Promise<GeoTIFFDocument | PromiseLike<GeoTIFFDocument>> {
 		// If we have a backup, read that. Otherwise read the resource from the workspace
 		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
-		const fileData = await PawDrawDocument.readFile(dataFile);
-		return new PawDrawDocument(uri, fileData, delegate);
+		const fileData = await GeoTIFFDocument.readFile(dataFile);
+		return new GeoTIFFDocument(uri, fileData, delegate);
 	}
 
 	static constructTIFF(
@@ -93,11 +85,23 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
 		// Alpha
 		view.setUint32(66, 0xFF000000, true);
 
+		// Find min and max of image
+		let min = Number.MAX_VALUE
+		let max = Number.MIN_VALUE
+		for (let w = 0; w < width; ++w) {
+			for (let h = 0; h < height; ++h) {
+				const val = ifd.data[h*width + w];
+				min = Math.min(min, val)
+				max = Math.max(max, val)
+			}
+		}
+
 		// Pixel data.
 		for (let w = 0; w < width; ++w) {
 			for (let h = 0; h < height; ++h) {
 				const offset = header_size + (h * width + w) * 4;
-				const val = ifd.data[h*width + w];
+				let val = ifd.data[h*width + w];
+				val = (val - min)/(max - min)
 				arr[offset + 0] = 255*val;  // R value
 				arr[offset + 1] = 255*val;  // G value
 				arr[offset + 2] = 255*val; 	// B value
@@ -119,100 +123,14 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
 
 	}
 
-	/*
-	function constructTIFF(initialContent) {
-
-		console.log(initialContent)
-
-//		const ifd = tiff.decode(initialContent)
-//		console.log(ifd[0])
-
-		const header_size = 70;
-
-		const width = 255;
-		const height = 255;
-		const image_size = width * height * 4;
-
-		const arr = new Uint8Array(header_size + image_size);
-		const view = new DataView(arr.buffer);
-		// BM magic number.
-		view.setUint16(0, 0x424D, false);
-		// File size.
-		view.setUint32(2, arr.length, true);
-		// Offset to image data.
-		view.setUint32(10, header_size, true);
-
-		// BITMAPINFOHEADER
-
-		// Size of BITMAPINFOHEADER
-		view.setUint32(14, 40, true);
-		// Width
-		view.setInt32(18, width, true);
-		// Height (signed because negative values flip
-		// the image vertically).
-		view.setInt32(22, height, true);
-		// Number of colour planes (colours stored as
-		// separate images; must be 1).
-		view.setUint16(26, 1, true);
-		// Bits per pixel.
-		view.setUint16(28, 32, true);
-		// Compression method, 6 = BI_ALPHABITFIELDS
-		view.setUint32(30, 6, true);
-		// Image size in bytes.
-		view.setUint32(34, image_size, true);
-		// Horizontal resolution, pixels per metre.
-		// This will be unused in this situation.
-		view.setInt32(38, 10000, true);
-		// Vertical resolution, pixels per metre.
-		view.setInt32(42, 10000, true);
-		// Number of colours. 0 = all
-		view.setUint32(46, 0, true);
-		// Number of important colours. 0 = all
-		view.setUint32(50, 0, true);
-
-		// Colour table. Because we used BI_ALPHABITFIELDS
-		// this specifies the R, G, B and A bitmasks.
-
-		// Red
-		view.setUint32(54, 0x000000FF, true);
-		// Green
-		view.setUint32(58, 0x0000FF00, true);
-		// Blue
-		view.setUint32(62, 0x00FF0000, true);
-		// Alpha
-		view.setUint32(66, 0xFF000000, true);
-
-		// Pixel data.
-		for (let w = 0; w < width; ++w) {
-			for (let h = 0; h < height; ++h) {
-				const offset = header_size + (h * width + w) * 4;
-				arr[offset + 0] = w;     // R value
-				arr[offset + 1] = h;     // G value
-				arr[offset + 2] = 255-w; // B value
-				arr[offset + 3] = 255-h; // A value
-			}
-		}
-
-		const blob = new Blob([arr], { type: "image/bmp" });
-		const url = URL.createObjectURL(blob);
-
-		return url
-
-	}
-	*/
-
 	private readonly _uri: vscode.Uri;
-
 	private _documentData: Uint8Array;
-	private _edits: PawDrawEdit[] = [];
-	private _savedEdits: PawDrawEdit[] = [];
-
-	private readonly _delegate: PawDrawDocumentDelegate;
+	private readonly _delegate: GeoTIFFDocumentDelegate;
 
 	private constructor(
 		uri: vscode.Uri,
 		initialContent: Uint8Array,
-		delegate: PawDrawDocumentDelegate
+		delegate: GeoTIFFDocumentDelegate
 	) {
 		super();
 		this._uri = uri;
@@ -232,7 +150,6 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
 
 	private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
 		readonly content?: Uint8Array;
-		readonly edits: readonly PawDrawEdit[];
 	}>());
 	/**
 	 * Fired to notify webviews that the document has changed.
@@ -261,82 +178,6 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
 		super.dispose();
 	}
 
-	/**
-	 * Called when the user edits the document in a webview.
-	 *
-	 * This fires an event to notify VS Code that the document has been edited.
-	 */
-	makeEdit(edit: PawDrawEdit) {
-		this._edits.push(edit);
-
-		this._onDidChange.fire({
-			label: 'Stroke',
-			undo: async () => {
-				this._edits.pop();
-				this._onDidChangeDocument.fire({
-					edits: this._edits,
-				});
-			},
-			redo: async () => {
-				this._edits.push(edit);
-				this._onDidChangeDocument.fire({
-					edits: this._edits,
-				});
-			}
-		});
-	}
-
-	/**
-	 * Called by VS Code when the user saves the document.
-	 */
-	async save(cancellation: vscode.CancellationToken): Promise<void> {
-		await this.saveAs(this.uri, cancellation);
-		this._savedEdits = Array.from(this._edits);
-	}
-
-	/**
-	 * Called by VS Code when the user saves the document to a new location.
-	 */
-	async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
-		const fileData = await this._delegate.getFileData();
-		if (cancellation.isCancellationRequested) {
-			return;
-		}
-		await vscode.workspace.fs.writeFile(targetResource, fileData);
-	}
-
-	/**
-	 * Called by VS Code when the user calls `revert` on a document.
-	 */
-	async revert(_cancellation: vscode.CancellationToken): Promise<void> {
-		const diskContent = await PawDrawDocument.readFile(this.uri);
-		this._documentData = diskContent;
-		this._edits = this._savedEdits;
-		this._onDidChangeDocument.fire({
-			content: diskContent,
-			edits: this._edits,
-		});
-	}
-
-	/**
-	 * Called by VS Code to backup the edited document.
-	 *
-	 * These backups are used to implement hot exit.
-	 */
-	async backup(destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
-		await this.saveAs(destination, cancellation);
-
-		return {
-			id: destination.toString(),
-			delete: async () => {
-				try {
-					await vscode.workspace.fs.delete(destination);
-				} catch {
-					// noop
-				}
-			}
-		};
-	}
 }
 
 /**
@@ -354,7 +195,7 @@ class PawDrawDocument extends Disposable implements vscode.CustomDocument {
  * - Implementing save, undo, redo, and revert.
  * - Backing up a custom editor.
  */
-export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvider<PawDrawDocument> {
+export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEditorProvider<GeoTIFFDocument> {
 
 	private static newPawDrawFileId = 1;
 
@@ -403,8 +244,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvide
 		uri: vscode.Uri,
 		openContext: { backupId?: string },
 		_token: vscode.CancellationToken
-	): Promise<PawDrawDocument> {
-		const document: PawDrawDocument = await PawDrawDocument.create(uri, openContext.backupId, {
+	): Promise<GeoTIFFDocument> {
+		const document: GeoTIFFDocument = await GeoTIFFDocument.create(uri, openContext.backupId, {
 			getFileData: async () => {
 				const webviewsForDocument = Array.from(this.webviews.get(document.uri));
 				if (!webviewsForDocument.length) {
@@ -430,7 +271,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvide
 			// Update all webviews when the document changes
 			for (const webviewPanel of this.webviews.get(document.uri)) {
 				this.postMessage(webviewPanel, 'update', {
-					edits: e.edits,
 					content: e.content,
 				});
 			}
@@ -442,7 +282,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvide
 	}
 
 	async resolveCustomEditor(
-		document: PawDrawDocument,
+		document: GeoTIFFDocument,
 		webviewPanel: vscode.WebviewPanel,
 		_token: vscode.CancellationToken
 	): Promise<void> {
@@ -477,24 +317,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvide
 		});
 	}
 
-	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<PawDrawDocument>>();
+	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GeoTIFFDocument>>();
 	public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
-
-	public saveCustomDocument(document: PawDrawDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-		return document.save(cancellation);
-	}
-
-	public saveCustomDocumentAs(document: PawDrawDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
-		return document.saveAs(destination, cancellation);
-	}
-
-	public revertCustomDocument(document: PawDrawDocument, cancellation: vscode.CancellationToken): Thenable<void> {
-		return document.revert(cancellation);
-	}
-
-	public backupCustomDocument(document: PawDrawDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
-		return document.backup(context.destination, cancellation);
-	}
 
 	//#endregion
 
@@ -568,12 +392,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomEditorProvide
 		panel.webview.postMessage({ type, body });
 	}
 
-	private onMessage(document: PawDrawDocument, message: any) {
+	private onMessage(document: GeoTIFFDocument, message: any) {
 		switch (message.type) {
-			case 'stroke':
-				document.makeEdit(message as PawDrawEdit);
-				return;
-
 			case 'response':
 				{
 					const callback = this._callbacks.get(message.requestId);
