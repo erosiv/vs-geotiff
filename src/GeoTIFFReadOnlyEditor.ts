@@ -134,6 +134,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	private readonly _uri: vscode.Uri;
 	private readonly _delegate: GeoTIFFDocumentDelegate;
 	readonly _raw: GeoTIFFRaw;
+	private _visible: boolean;
 
 	private constructor(
 		uri: vscode.Uri,
@@ -142,6 +143,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	) {
 
 		super();
+		this._visible = false;
 		this._uri = uri;
 		this._raw = raw;
 		this._delegate = delegate;
@@ -175,6 +177,11 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	public get uri() { return this._uri; }
 	public get raw() { return this._raw; }
 	public get documentData(): Uint8Array { return this._raw._bitmap._data; }
+
+	public get visible() { return this._visible; }
+	public set visible(_visible: boolean){
+		this._visible = _visible;
+	}
 
 	// Event Handlers
 
@@ -223,6 +230,102 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 	constructor(private readonly _context: vscode.ExtensionContext){}
 
+	private static selectTab(tab: vscode.Tab): boolean {
+		
+		if(!tab.isActive)
+			return false;
+
+		if(tab.input instanceof vscode.TabInputCustom && tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+			let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
+			if(document instanceof GeoTIFFDocument){
+				document.visible = true
+				GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
+				return true;
+			}
+		}
+
+		return false;
+
+	}
+
+	private static closeTab(tab: vscode.Tab) {
+		if(tab.input instanceof vscode.TabInputCustom){
+			if(tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+				GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(tab.input.uri.path)
+			}
+		} 
+	}
+
+	private static changeTab(event: vscode.TabChangeEvent) {
+
+		if(event.changed.length > 0){
+
+			let found: boolean = false;
+			this.OpenViewURI.forEach((value, key) => {
+				value.visible = false
+			});
+
+			event.changed.forEach( (tab: vscode.Tab) => {
+				if(this.selectTab(tab)){
+					found = true;
+				}
+			})
+
+			if(found == false){
+				GeoTIFFStatusBarInfo.hideStatusBar()
+			}
+
+		}
+		
+		if(event.closed.length > 0){
+			event.closed.forEach( (tab: vscode.Tab) => {
+				this.closeTab(tab)
+			});
+			if(GeoTIFFReadOnlyEditorProvider.OpenViewURI.size == 0){
+				GeoTIFFStatusBarInfo.hideStatusBar()
+			}
+		}
+
+	}
+
+	private static changeTabGroup(event: vscode.TabGroupChangeEvent) {
+
+		if(event.changed.length > 0){
+
+			let found: boolean = false;
+			this.OpenViewURI.forEach((value, key) => {
+				value.visible = false
+			});
+
+			event.changed.forEach( (group: vscode.TabGroup) => {
+				if(group.isActive){
+					group.tabs.forEach((tab: vscode.Tab) => {
+						if(this.selectTab(tab)){
+							found = true;
+						}
+					})
+				}
+			})
+
+			if(found == false){
+				GeoTIFFStatusBarInfo.hideStatusBar()
+			}
+
+		}
+		
+		if(event.closed.length > 0){
+			event.closed.forEach( (group: vscode.TabGroup) => {
+				group.tabs.forEach((tab: vscode.Tab) => {
+					this.closeTab(tab)
+				})
+			});
+			if(GeoTIFFReadOnlyEditorProvider.OpenViewURI.size == 0){
+				GeoTIFFStatusBarInfo.hideStatusBar()
+			}
+		}
+
+	}
+
 	public static register(context: vscode.ExtensionContext): void {
 
 		// Register Custom Editor
@@ -244,9 +347,15 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
 		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
 			this.OpenViewURI.forEach((val, key) => {
-				val._raw.shade_turbo()
-				const test = {content: val._raw._bitmap._data}
-				val._onDidChangeDocument.fire(test);
+				if(val.visible){
+					if(val._raw._shade == BitmapShading.Grayscale){
+						val._raw.shade_turbo()
+					} else {
+						val._raw.shade_grayscale()
+					}
+					const test = {content: val._raw._bitmap._data}
+					val._onDidChangeDocument.fire(test);
+				}
 			});
 		}));
 		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
@@ -255,47 +364,11 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		// Custom Editor Tab Management?
 
 		context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs((event) => {
+			GeoTIFFReadOnlyEditorProvider.changeTab(event)
+		}));
 
-			if(event.changed.length > 0){
-
-				let found: boolean = false;
-
-				event.changed.forEach( (changed: vscode.Tab) => {
-					if(changed.input instanceof vscode.TabInputCustom){
-						if(changed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-							if(changed.isActive){
-								let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(changed.input.uri.path)
-								if(document instanceof GeoTIFFDocument){
-									GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
-									found = true;
-								}
-							}
-						}
-					}
-				});
-
-				if(found == false){
-					GeoTIFFStatusBarInfo.hideStatusBar()
-				}
-
-			}
-
-			if(event.closed.length > 0){
-
-				event.closed.forEach( (closed: vscode.Tab) => {
-					if(closed.input instanceof vscode.TabInputCustom){
-						if(closed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-							GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(closed.input.uri.path)
-						}
-					} 
-				});
-	
-				if(GeoTIFFReadOnlyEditorProvider.OpenViewURI.size == 0){
-					GeoTIFFStatusBarInfo.hideStatusBar()
-				}
-
-			}
-
+		context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups((event) => {
+			GeoTIFFReadOnlyEditorProvider.changeTabGroup(event)
 		}));
 
 	}
@@ -324,8 +397,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		const listeners: vscode.Disposable[] = [];
 
 		listeners.push(document.onDidChangeContent(e => {
-
-			console.log("DOCUMENT APPEARS TO HAVE CHANGED")
 			
 			// Update all webviews when the document changes
 			for (const webviewPanel of this.webviews.get(document.uri)) {
@@ -353,7 +424,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 			enableScripts: true,
 		};
 		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
-
 		webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(document, e));
 
 		// Wait for the webview to be properly ready before we init
@@ -371,9 +441,9 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 						editable,
 					});
 				}
+				document.visible = true
 			}
 		});
-//		this._onDidDispose.fire();
 
 	}
 
