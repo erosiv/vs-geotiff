@@ -2,18 +2,19 @@ import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
-import {shade_grayscale, shade_turbo} from './shade'
+import {Bitmap, shade_grayscale, shade_turbo} from './shade'
+
 type DataArray = Uint8Array | Uint16Array | Float32Array;
 
 class GeoTIFFRaw {
-
+	
 	readonly _raw: DataArray;
 	readonly _bytes: number;
 	readonly _width: number;
 	readonly _height: number;
 	public _min: number = 0.0;
 	public _max: number = 0.0;
-	_bitmap: Uint8Array;
+	_bitmap: Bitmap;
 
 	constructor(
 		_raw: DataArray,
@@ -25,7 +26,7 @@ class GeoTIFFRaw {
 		this._bytes = _bytes;
 		this._width = _width;
 		this._height = _height;
-		this._bitmap = new Uint8Array();
+		this._bitmap = new Bitmap(_width, _height)
 	}
 
 	public static empty(): GeoTIFFRaw {
@@ -50,10 +51,6 @@ class GeoTIFFRaw {
 			geotiff._max = Math.max(geotiff._max, val)
 		}
 
-		const pixels = width * height;
-		const header_size = 70;
-		const image_size = 4 * pixels;
-		geotiff._bitmap = new Uint8Array(header_size + image_size);
 		return geotiff
 
 	}
@@ -63,64 +60,11 @@ class GeoTIFFRaw {
 	//
 
 	public shade_turbo(): void {
-
-		const pixels = this._width * this._height;
-		const header_size = 70;
-		const image_size = 4 * pixels;
-		const view = new DataView(this._bitmap.buffer);
-				
-		view.setUint16(0, 0x424D, false);							// BM magic number.
-		view.setUint32(2, this._bitmap.length, true);	// File size.
-		view.setUint32(10, header_size, true);				// Offset to image data.
-		view.setUint32(14, 40, true);									// Size of BITMAPINFOHEADER
-		view.setInt32(18, this._width, true);					// Width
-		view.setInt32(22, this._height, true);				// Height (signed because negative values flip the image vertically).
-		view.setUint16(26, 1, true);									// Number of colour planes (colours stored as separate images; must be 1).
-		view.setUint16(28, 32, true);									// Bits per pixel.
-		view.setUint32(30, 6, true);									// Compression method, 6 = BI_ALPHABITFIELDS
-		view.setUint32(34, image_size, true);					// Image size in bytes.
-		view.setInt32(38, 10000, true);								// Horizontal resolution, pixels per metre. This will be unused in this situation.
-		view.setInt32(42, 10000, true);								// Vertical resolution, pixels per metre.
-		view.setUint32(46, 0, true);									// Number of colours. 0 = all
-		view.setUint32(50, 0, true);									// Number of important colours. 0 = all
-		view.setUint32(54, 0x000000FF, true);					// Red Bitmask
-		view.setUint32(58, 0x0000FF00, true);					// Green Bitmask
-		view.setUint32(62, 0x00FF0000, true);					// Blue Bitmask
-		view.setUint32(66, 0xFF000000, true);					// Alpha Bitmask
-
-		shade_turbo(this._raw, this._width, this._height, this._min, this._max, this._bitmap, header_size)
-
+		shade_turbo(this._bitmap, this._raw, this._min, this._max)
 	}
 
-	public shade_linear(): void {
-
-		const pixels = this._width * this._height;
-		const header_size = 70;
-		const image_size = 4 * pixels;
-
-		const view = new DataView(this._bitmap.buffer);
-				
-		view.setUint16(0, 0x424D, false);							// BM magic number.
-		view.setUint32(2, this._bitmap.length, true);	// File size.
-		view.setUint32(10, header_size, true);				// Offset to image data.
-		view.setUint32(14, 40, true);									// Size of BITMAPINFOHEADER
-		view.setInt32(18, this._width, true);					// Width
-		view.setInt32(22, this._height, true);				// Height (signed because negative values flip the image vertically).
-		view.setUint16(26, 1, true);									// Number of colour planes (colours stored as separate images; must be 1).
-		view.setUint16(28, 32, true);									// Bits per pixel.
-		view.setUint32(30, 6, true);									// Compression method, 6 = BI_ALPHABITFIELDS
-		view.setUint32(34, image_size, true);					// Image size in bytes.
-		view.setInt32(38, 10000, true);								// Horizontal resolution, pixels per metre. This will be unused in this situation.
-		view.setInt32(42, 10000, true);								// Vertical resolution, pixels per metre.
-		view.setUint32(46, 0, true);									// Number of colours. 0 = all
-		view.setUint32(50, 0, true);									// Number of important colours. 0 = all
-		view.setUint32(54, 0x000000FF, true);					// Red Bitmask
-		view.setUint32(58, 0x0000FF00, true);					// Green Bitmask
-		view.setUint32(62, 0x00FF0000, true);					// Blue Bitmask
-		view.setUint32(66, 0xFF000000, true);					// Alpha Bitmask
-
-		shade_grayscale(this._raw, this._width, this._height, this._min, this._max, this._bitmap, header_size)
-
+	public shade_grayscale(): void {
+		shade_grayscale(this._bitmap, this._raw, this._min, this._max)
 	}
 
 }
@@ -150,7 +94,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 			return GeoTIFFRaw.empty();
 		}
 		const file = GeoTIFFRaw.create(await vscode.workspace.fs.readFile(uri));
-		file.shade_linear()
+		file.shade_grayscale()
 		return file;
 	}
 
@@ -171,7 +115,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 	public get uri() { return this._uri; }
 
-	public get documentData(): Uint8Array { return this._raw._bitmap; }
+	public get documentData(): Uint8Array { return this._raw._bitmap._data; }
 
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
@@ -301,7 +245,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 			// how do force this to redraw the ???
 			this.OpenViewURI.forEach((val, key) => {
 				val._raw.shade_turbo()
-				const test = {content: val._raw._bitmap}
+				const test = {content: val._raw._bitmap._data}
 				val._onDidChangeDocument.fire(test);
 			});
 		
