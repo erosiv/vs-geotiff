@@ -2,14 +2,16 @@ import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
-import {Bitmap, shade_grayscale, shade_turbo} from './shade'
+import {Bitmap, shade} from './shade'
+import * as cmap from "./cmap"
 
 type DataArray = Uint8Array | Uint16Array | Float32Array;
 
 enum BitmapShading {
 	None = "None",
   Grayscale = "Grayscale",
-  Turbo = "Turbo"
+  Turbo = "Turbo",
+	Viridis = "Viridis"
 }
 
 class GeoTIFFRaw {
@@ -43,7 +45,7 @@ class GeoTIFFRaw {
 			}
 
 			this._shade = BitmapShading.Grayscale;
-			this.shade_grayscale()
+			shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)
 
 		} else {
 
@@ -69,14 +71,18 @@ class GeoTIFFRaw {
 	// Shading Functions
 	//
 
-	public shade_turbo(): void {
-		this._shade = BitmapShading.Turbo;
-		shade_turbo(this._bitmap, this._raw, this._min, this._max)
-	}
-
-	public shade_grayscale(): void {
-		this._shade = BitmapShading.Grayscale;
-		shade_grayscale(this._bitmap, this._raw, this._min, this._max)
+	public reshade(): Bitmap {
+		if(this._shade == BitmapShading.Grayscale){
+			this._shade = BitmapShading.Turbo;
+			shade(this._bitmap, cmap.turbo, this._raw, this._min, this._max)	
+		} else if(this._shade == BitmapShading.Turbo) {
+			this._shade = BitmapShading.Viridis;
+			shade(this._bitmap, cmap.viridis, this._raw, this._min, this._max)	
+		} else {
+			this._shade = BitmapShading.Grayscale;
+			shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)
+		}
+		return this._bitmap
 	}
 
 }
@@ -134,7 +140,6 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	private readonly _uri: vscode.Uri;
 	private readonly _delegate: GeoTIFFDocumentDelegate;
 	readonly _raw: GeoTIFFRaw;
-	private _visible: boolean;
 
 	private constructor(
 		uri: vscode.Uri,
@@ -143,7 +148,6 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	) {
 
 		super();
-		this._visible = false;
 		this._uri = uri;
 		this._raw = raw;
 		this._delegate = delegate;
@@ -177,11 +181,6 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	public get uri() { return this._uri; }
 	public get raw() { return this._raw; }
 	public get documentData(): Uint8Array { return this._raw._bitmap._data; }
-
-	public get visible() { return this._visible; }
-	public set visible(_visible: boolean){
-		this._visible = _visible;
-	}
 
 	// Event Handlers
 
@@ -227,6 +226,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 	private static readonly viewType = 'vsGeoTIFF.GeoTIFF';
 	private readonly webviews = new WebviewCollection();
 	private static OpenViewURI = new Map<string, GeoTIFFDocument>();
+	private static SelectedDocument: GeoTIFFDocument | undefined;
 
 	constructor(private readonly _context: vscode.ExtensionContext){}
 
@@ -244,7 +244,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 			let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
 			if(document instanceof GeoTIFFDocument){
-				document.visible = true
+				GeoTIFFReadOnlyEditorProvider.SelectedDocument = document;
 				GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
 			}
 
@@ -253,14 +253,10 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 	private static changeTab(event: vscode.TabChangeEvent){
 
-		console.log("CHANGED TAB", event)
-
 		if(event.changed.length > 0){
 			
 			GeoTIFFStatusBarInfo.hideStatusBar()
-			this.OpenViewURI.forEach((value, key) => {
-				value.visible = false
-			});
+			GeoTIFFReadOnlyEditorProvider.SelectedDocument = undefined;
 
 			event.changed.forEach( (tab: vscode.Tab) => {
 				this.selectTab(tab)
@@ -275,9 +271,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		if(event.changed.length > 0){
 
 			GeoTIFFStatusBarInfo.hideStatusBar()
-			this.OpenViewURI.forEach((value, key) => {
-				value.visible = false
-			});
+			GeoTIFFReadOnlyEditorProvider.SelectedDocument = undefined;
 
 			event.changed.forEach( (group: vscode.TabGroup) => {
 				if(group.isActive){
@@ -309,24 +303,20 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 		GeoTIFFStatusBarInfo.register(context);
 
-		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
-		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-			this.OpenViewURI.forEach((val, key) => {
-				if(val.visible){
-					if(val._raw._shade == BitmapShading.Grayscale){
-						val._raw.shade_turbo()
-					} else {
-						val._raw.shade_grayscale()
-					}
-					const test = {content: val._raw._bitmap._data}
-					val._onDidChangeDocument.fire(test);
-				}
-			});
+		// Reshade Bitmap Command
+
+		const commandIdShade = 'vs-geotiff.GeoTIFFInfo.shade';
+		context.subscriptions.push(vscode.commands.registerCommand(commandIdShade, () => {
+			if(this.SelectedDocument instanceof GeoTIFFDocument){
+				const bitmap = this.SelectedDocument._raw.reshade()
+				this.SelectedDocument._onDidChangeDocument.fire({content: bitmap._data});
+			}
 		}));
-		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
+
+		GeoTIFFStatusBarInfo.itemColor.command = commandIdShade;
 		context.subscriptions.push(GeoTIFFStatusBarInfo.itemColor);
 
-		// Custom Editor Tab Management?
+		// Change Tab Hooks
 
 		context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs((event) => {
 			GeoTIFFReadOnlyEditorProvider.changeTab(event)
@@ -410,8 +400,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 						editable,
 					});
 				}
-				document.visible = webviewPanel.active
 			}
+			GeoTIFFReadOnlyEditorProvider.SelectedDocument = document
 		});
 
 	}
