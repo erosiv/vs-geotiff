@@ -11,19 +11,44 @@ interface GeoTIFFDocumentDelegate {
 
 class GeoTIFFRaw {
 
+	readonly _rawData: Uint8Array;
+	readonly _bytes: number;
+	readonly _width: number;
+	readonly _height: number;
+	_bitmap: Uint8Array;
+
 	constructor(
-		_documentData: Uint8Array,
+		_rawData: Uint8Array,
 		_bytes: number,
 		_width: number,
 		_height: number,
 	){
-		this._documentData = _documentData;
+		this._rawData = _rawData;
+		this._bitmap = new Uint8Array();
 		this._bytes = _bytes;
 		this._width = _width;
 		this._height = _height;
 	}
 
-	public static shade_linear(ifd: tiff.TiffIfd): Uint8Array {
+	public static empty(): GeoTIFFRaw {
+		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
+	}
+
+	public static create(rawdata: Uint8Array): GeoTIFFRaw {
+		const ifd = tiff.decode(rawdata)[0]
+		const kbytes = rawdata.length/1000;
+		const width = ifd.width;
+		const height = ifd.height;
+		return new GeoTIFFRaw(rawdata, kbytes, width, height)
+	}
+
+	//
+	// Shading Functions
+	//
+
+	public shade_turbo(): void {
+
+		const ifd = tiff.decode(this._rawData)[0]
 
 		const width = ifd.width;
 		const height = ifd.height;
@@ -31,8 +56,8 @@ class GeoTIFFRaw {
 
 		const header_size = 70;
 		const image_size = 4 * pixels;
-		const arr = new Uint8Array(header_size + image_size);
 
+		const arr = new Uint8Array(header_size + image_size);
 		const view = new DataView(arr.buffer);
 				
 		view.setUint16(0, 0x424D, false);				// BM magic number.
@@ -63,21 +88,6 @@ class GeoTIFFRaw {
 			max = Math.max(max, val)
 		}
 
-		/*
-		// Pixel data.
-		for (let w = 0; w < width; ++w) {
-			for (let h = 0; h < height; ++h) {
-				const offset = header_size + (h * width + w) * 4;
-				let val = ifd.data[h*width + w];
-				val = (val - min)/(max - min)
-				arr[offset + 0] = 255*val;  // R value
-				arr[offset + 1] = 255*val;  // G value
-				arr[offset + 2] = 255*val; 	// B value
-				arr[offset + 3] = 255;			// A value
-			}
-		}
-		*/
-
 		for (let w = 0; w < width; ++w) {
 			for (let h = 0; h < height; ++h) {
 				const offset = header_size + (h * width + w) * 4;
@@ -100,31 +110,68 @@ class GeoTIFFRaw {
 			}
 		}
 
-		return arr;
+		this._bitmap = arr;
 
 	}
 
-	public static empty(): GeoTIFFRaw {
-		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
-	}
+	public shade_linear(): void {
 
-	public static create(rawdata: Uint8Array): GeoTIFFRaw {
+		const ifd = tiff.decode(this._rawData)[0]
 
-		const ifd = tiff.decode(rawdata)[0]
-
-		const kbytes = rawdata.length/1000;
 		const width = ifd.width;
 		const height = ifd.height;
-		const bmp = this.shade_linear(ifd)
+		const pixels = width * height;
 
-		return new GeoTIFFRaw(bmp, kbytes, width, height)
+		const header_size = 70;
+		const image_size = 4 * pixels;
+
+		const arr = new Uint8Array(header_size + image_size);
+		const view = new DataView(arr.buffer);
+				
+		view.setUint16(0, 0x424D, false);				// BM magic number.
+		view.setUint32(2, arr.length, true);		// File size.
+		view.setUint32(10, header_size, true);	// Offset to image data.
+		view.setUint32(14, 40, true);						// Size of BITMAPINFOHEADER
+		view.setInt32(18, width, true);					// Width
+		view.setInt32(22, height, true);				// Height (signed because negative values flip the image vertically).
+		view.setUint16(26, 1, true);						// Number of colour planes (colours stored as separate images; must be 1).
+		view.setUint16(28, 32, true);						// Bits per pixel.
+		view.setUint32(30, 6, true);						// Compression method, 6 = BI_ALPHABITFIELDS
+		view.setUint32(34, image_size, true);		// Image size in bytes.
+		view.setInt32(38, 10000, true);					// Horizontal resolution, pixels per metre. This will be unused in this situation.
+		view.setInt32(42, 10000, true);					// Vertical resolution, pixels per metre.
+		view.setUint32(46, 0, true);						// Number of colours. 0 = all
+		view.setUint32(50, 0, true);						// Number of important colours. 0 = all
+		view.setUint32(54, 0x000000FF, true);		// Red Bitmask
+		view.setUint32(58, 0x0000FF00, true);		// Green Bitmask
+		view.setUint32(62, 0x00FF0000, true);		// Blue Bitmask
+		view.setUint32(66, 0xFF000000, true);		// Alpha Bitmask
+
+		// Find min and max of image
+		let min = Number.MAX_VALUE
+		let max = Number.MIN_VALUE
+		for(let p = 0; p < pixels; ++p){
+			const val = ifd.data[p];
+			min = Math.min(min, val)
+			max = Math.max(max, val)
+		}
+
+		// Pixel data.
+		for (let w = 0; w < width; ++w) {
+			for (let h = 0; h < height; ++h) {
+				const offset = header_size + (h * width + w) * 4;
+				let val = ifd.data[h*width + w];
+				val = (val - min)/(max - min)
+				arr[offset + 0] = 255*val;  // R value
+				arr[offset + 1] = 255*val;  // G value
+				arr[offset + 2] = 255*val; 	// B value
+				arr[offset + 3] = 255;			// A value
+			}
+		}
+
+		this._bitmap = arr;
 
 	}
-
-	readonly _documentData: Uint8Array;
-	readonly _bytes: number;
-	readonly _width: number;
-	readonly _height: number;
 
 }
 
@@ -148,8 +195,9 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		if (uri.scheme === 'untitled') {
 			return GeoTIFFRaw.empty();
 		}
-		const output = new Uint8Array(await vscode.workspace.fs.readFile(uri));
-		return GeoTIFFRaw.create(output);
+		const file = GeoTIFFRaw.create(await vscode.workspace.fs.readFile(uri));
+		file.shade_linear()
+		return file;
 	}
 
 	private readonly _uri: vscode.Uri;
@@ -169,7 +217,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 	public get uri() { return this._uri; }
 
-	public get documentData(): Uint8Array { return this._raw._documentData; }
+	public get documentData(): Uint8Array { return this._raw._bitmap; }
 
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
@@ -178,7 +226,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	 */
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
+	public readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
 		readonly content?: Uint8Array;
 	}>());
 	/**
@@ -186,7 +234,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	 */
 	public readonly onDidChangeContent = this._onDidChangeDocument.event;
 
-	private readonly _onDidChange = this._register(new vscode.EventEmitter<{
+	public readonly _onDidChange = this._register(new vscode.EventEmitter<{
 		readonly label: string,
 		undo(): void,
 		redo(): void,
@@ -221,17 +269,6 @@ class GeoTIFFStatusBarInfo {
 	 	GeoTIFFStatusBarInfo.itemColor = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		GeoTIFFStatusBarInfo.itemShape = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		GeoTIFFStatusBarInfo.itemBytes = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-
-//		symbol-color
-
-		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
-		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-			vscode.window.showInformationMessage(`Selected Shade`);
-		}));
-
-		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) Turbo`;
-		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
-		context.subscriptions.push(GeoTIFFStatusBarInfo.itemColor);
 	
 	}
 
@@ -301,7 +338,25 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		}));
 
 		GeoTIFFStatusBarInfo.register(context);
-				
+
+		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
+		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
+
+			vscode.window.showInformationMessage(`Selected Shade`);
+
+			// how do force this to redraw the ???
+			this.OpenViewURI.forEach((val, key) => {
+				val._raw.shade_turbo()
+				const test = {content: val._raw._bitmap}
+				val._onDidChangeDocument.fire(test);
+			});
+		
+		}));
+
+		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) Turbo`;
+		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
+		context.subscriptions.push(GeoTIFFStatusBarInfo.itemColor);
+
 		// Custom Editor Tab Management?
 
 		context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs((event) => {
@@ -374,6 +429,9 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		const listeners: vscode.Disposable[] = [];
 
 		listeners.push(document.onDidChangeContent(e => {
+
+			console.log("DOCUMENT APPEARS TO HAVE CHANGED")
+			
 			// Update all webviews when the document changes
 			for (const webviewPanel of this.webviews.get(document.uri)) {
 				this.postMessage(webviewPanel, 'update', {
@@ -414,7 +472,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 					});
 				} else {
 					const editable = vscode.workspace.fs.isWritableFileSystem(document.uri.scheme);
-
 					this.postMessage(webviewPanel, 'init', {
 						value: document.documentData,
 						editable,
@@ -422,7 +479,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 				}
 			}
 		});
-//		GeoTIFFStatusBarInfo.updateStatusBar(document);
+//		this._onDidDispose.fire();
+
 	}
 
 	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GeoTIFFDocument>>();
