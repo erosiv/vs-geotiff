@@ -7,6 +7,24 @@ interface GeoTIFFDocumentDelegate {
 	getFileData(): Promise<Uint8Array>;
 }
 
+class GeoTIFFRaw {
+
+	constructor(
+		_documentData: Uint8Array,
+		_width: Number,
+		_height: Number,
+	){
+		this._documentData = _documentData;
+		this._width = _width;
+		this._height = _height;
+	}
+
+	readonly _documentData: Uint8Array;
+	readonly _width: Number;
+	readonly _height: Number;
+
+}
+
 /**
  * Define the document (the data model) used for paw draw files.
  */
@@ -20,12 +38,10 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		// If we have a backup, read that. Otherwise read the resource from the workspace
 		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
 		const fileData = await GeoTIFFDocument.readFile(dataFile);
-		return new GeoTIFFDocument(uri, fileData, 100, 200, delegate);
+		return new GeoTIFFDocument(uri, fileData, delegate);
 	}
 
-	static constructTIFF(
-		rawdata: Uint8Array
-	): Uint8Array {
+	static constructTIFF(rawdata: Uint8Array): GeoTIFFRaw {
 
 //		console.log(initialContent)
 
@@ -109,13 +125,13 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 			}
 		}
 
-		return arr
+		return new GeoTIFFRaw(arr, width, height)
 
 	}
 
-	private static async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+	private static async readFile(uri: vscode.Uri): Promise<GeoTIFFRaw> {
 		if (uri.scheme === 'untitled') {
-			return new Uint8Array();
+			return new GeoTIFFRaw(new Uint8Array(), 0, 0);
 		}
 
 		const output = new Uint8Array(await vscode.workspace.fs.readFile(uri));
@@ -124,31 +140,24 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	}
 
 	private readonly _uri: vscode.Uri;
-	private _documentData: Uint8Array;
 	private readonly _delegate: GeoTIFFDocumentDelegate;
-
-	// 
-	readonly _width: Number;
-	readonly _height: Number;
+	readonly _raw: GeoTIFFRaw;
 
 	private constructor(
 		uri: vscode.Uri,
-		initialContent: Uint8Array,
-		width: Number,
-		height: Number,
+		raw: GeoTIFFRaw,
 		delegate: GeoTIFFDocumentDelegate
 	) {
 		super();
 		this._uri = uri;
-		this._documentData = initialContent;
+		this._raw = raw;
 		this._delegate = delegate;
-		this._width = width;
-		this._height = height;
 	}
 
 	public get uri() { return this._uri; }
 
-	public get documentData(): Uint8Array { return this._documentData; }
+	public get documentData(): Uint8Array { return this._raw._documentData; }
+
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
 	/**
@@ -205,23 +214,37 @@ class GeoTIFFStatusBarInfo {
 		GeoTIFFStatusBarInfo.myStatusBarItem.command = myCommandId;
 		context.subscriptions.push(GeoTIFFStatusBarInfo.myStatusBarItem);
 
+		/*
+
 		// register some listener that make sure the status bar 
 		// item always up-to-date
-		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(this.hideStatusBar));
-
-		// update status bar item once at start
-		//this.updateStatusBar();
+		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(
+			
+			editor => {
+			if (!editor) {
+					// hide
+					return;
+			}
+//			GeoTIFFStatusBarInfo.updateStatusBar(editor.document)
+//
+//			if (editor.document.languageId === 'javascript' || editor.document.languageId === 'typescript') {
+//					// show
+//			} else {
+//					// hide
+//			}
+	}));
+	*/
 
 	}
 
-	public static hideStatusBar(): void {
-		this.myStatusBarItem.hide();
-	}
+///	public static hideStatusBar(editor: vscode.TextEditor): void {
+///		this.myStatusBarItem.hide();
+///	}
 
 	public static updateStatusBar(document: GeoTIFFDocument): void {
 
 		// this.myStatusBarItem.text = `$(megaphone) ${n} line(s) selected`;
-		GeoTIFFStatusBarInfo.myStatusBarItem.text = `${document._width} x ${document._height}`;
+		GeoTIFFStatusBarInfo.myStatusBarItem.text = `${document._raw._width} x ${document._raw._height}`;
 		GeoTIFFStatusBarInfo.myStatusBarItem.show();
 
 	}
@@ -275,6 +298,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		openContext: { backupId?: string },
 		_token: vscode.CancellationToken
 	): Promise<GeoTIFFDocument> {
+
 		const document: GeoTIFFDocument = await GeoTIFFDocument.create(uri, openContext.backupId, {
 			getFileData: async () => {
 				const webviewsForDocument = Array.from(this.webviews.get(document.uri));
@@ -288,16 +312,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		});
 
 		const listeners: vscode.Disposable[] = [];
-
 		GeoTIFFStatusBarInfo.updateStatusBar(document);
-
-		listeners.push(document.onDidChange(e => {
-			// Tell VS Code that the document has been edited by the use.
-			this._onDidChangeCustomDocument.fire({
-				document,
-				...e,
-			});
-		}));
 
 		listeners.push(document.onDidChangeContent(e => {
 			// Update all webviews when the document changes
@@ -306,12 +321,12 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 					content: e.content,
 				});
 			}
-		//	this.StatusBarInfo.updateStatusBar(document);
+			GeoTIFFStatusBarInfo.updateStatusBar(document);
 		}));
 
 		document.onDidDispose(() => disposeAll(listeners));
-
 		return document;
+		
 	}
 
 	async resolveCustomEditor(
@@ -348,6 +363,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 				}
 			}
 		});
+//		GeoTIFFStatusBarInfo.updateStatusBar(document);
 	}
 
 	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<GeoTIFFDocument>>();
