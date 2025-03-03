@@ -3,6 +3,46 @@ import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
 
+export class GeoTIFFStatusBarInfo {
+
+	static myStatusBarItem: vscode.StatusBarItem;
+
+	public static register(context: vscode.ExtensionContext): void {
+
+		// register a command that is invoked when the status bar
+		// item is selected
+		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
+		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
+			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
+			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
+		}));
+
+		// create a new status bar item that we can now manage
+		GeoTIFFStatusBarInfo.myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+		GeoTIFFStatusBarInfo.myStatusBarItem.command = myCommandId;
+		context.subscriptions.push(GeoTIFFStatusBarInfo.myStatusBarItem);
+
+		// register some listener that make sure the status bar 
+		// item always up-to-date
+		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(GeoTIFFStatusBarInfo.updateStatusBarItem));
+
+		// update status bar item once at start
+		GeoTIFFStatusBarInfo.updateStatusBarItem();
+
+	}
+
+	public static updateStatusBarItem(): void {
+		const n = 100;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
+		if (n > 0) {
+			GeoTIFFStatusBarInfo.myStatusBarItem.text = `$(megaphone) ${n} line(s) selected`;
+			GeoTIFFStatusBarInfo.myStatusBarItem.show();
+		} else {
+			GeoTIFFStatusBarInfo.myStatusBarItem.hide();
+		}
+	}
+
+}
+
 interface GeoTIFFDocumentDelegate {
 	getFileData(): Promise<Uint8Array>;
 }
@@ -183,7 +223,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 /**
  * Provider for paw draw editors.
  *
- * Paw draw editors are used for `.pawDraw` files, which are just `.png` files with a different file extension.
+ * Paw draw editors are used for `.geotiff` files, which are just `.png` files with a different file extension.
  *
  * This provider demonstrates:
  *
@@ -197,17 +237,17 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
  */
 export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEditorProvider<GeoTIFFDocument> {
 
-	private static newPawDrawFileId = 1;
+	private static newGeoTIFFFileId = 1;
 
 	public static register(context: vscode.ExtensionContext): vscode.Disposable {
-		vscode.commands.registerCommand('catCustoms.pawDraw.new', () => {
+		vscode.commands.registerCommand('vs-geotiff.GeoTIFF.new', () => {
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			if (!workspaceFolders) {
 				vscode.window.showErrorMessage("Creating new Paw Draw files currently requires opening a workspace");
 				return;
 			}
 
-			const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, `new-${GeoTIFFReadOnlyEditorProvider.newPawDrawFileId++}.pawdraw`)
+			const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, `new-${GeoTIFFReadOnlyEditorProvider.newGeoTIFFFileId++}.tiff`)
 				.with({ scheme: 'untitled' });
 
 			vscode.commands.executeCommand('vscode.openWith', uri, GeoTIFFReadOnlyEditorProvider.viewType);
