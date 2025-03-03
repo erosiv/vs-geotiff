@@ -6,6 +6,12 @@ import {Bitmap, shade_grayscale, shade_turbo} from './shade'
 
 type DataArray = Uint8Array | Uint16Array | Float32Array;
 
+enum BitmapShading {
+	None = "None",
+  Grayscale = "Grayscale",
+  Turbo = "Turbo"
+}
+
 class GeoTIFFRaw {
 	
 	private readonly _raw: DataArray;
@@ -13,6 +19,7 @@ class GeoTIFFRaw {
 	private readonly _min: number;
 	private readonly _max: number;
 	_bitmap: Bitmap;
+	public _shade: BitmapShading;
 
 	constructor(source: Uint8Array | undefined){
 
@@ -35,6 +42,9 @@ class GeoTIFFRaw {
 				this._max = Math.max(this._max, val)
 			}
 
+			this._shade = BitmapShading.Grayscale;
+			this.shade_grayscale()
+
 		} else {
 
 			this._raw = new Float32Array()
@@ -42,6 +52,7 @@ class GeoTIFFRaw {
 			this._bitmap = new Bitmap(0, 0)
 			this._min = 0.0
 			this._max = 0.0
+			this._shade = BitmapShading.None
 
 		}
 
@@ -59,10 +70,12 @@ class GeoTIFFRaw {
 	//
 
 	public shade_turbo(): void {
+		this._shade = BitmapShading.Turbo;
 		shade_turbo(this._bitmap, this._raw, this._min, this._max)
 	}
 
 	public shade_grayscale(): void {
+		this._shade = BitmapShading.Grayscale;
 		shade_grayscale(this._bitmap, this._raw, this._min, this._max)
 	}
 
@@ -90,6 +103,7 @@ class GeoTIFFStatusBarInfo {
 
 	public static updateStatusBar(geotiff: GeoTIFFRaw): void {
 		
+		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) ${geotiff._shade}`;
 		GeoTIFFStatusBarInfo.itemColor.show();
 
 		GeoTIFFStatusBarInfo.itemShape.text = `${geotiff.width}x${geotiff.height}`;
@@ -126,10 +140,16 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		raw: GeoTIFFRaw,
 		delegate: GeoTIFFDocumentDelegate
 	) {
+
 		super();
 		this._uri = uri;
 		this._raw = raw;
 		this._delegate = delegate;
+
+		this.onDidChangeContent(e => {
+			GeoTIFFStatusBarInfo.updateStatusBar(this.raw);
+		})
+
 	}
 
 	static async create(
@@ -147,9 +167,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		if (uri.scheme === 'untitled') {
 			return new GeoTIFFRaw(undefined);
 		}
-		const file = new GeoTIFFRaw(await vscode.workspace.fs.readFile(uri))
-		file.shade_grayscale()
-		return file;
+		return new GeoTIFFRaw(await vscode.workspace.fs.readFile(uri))
 	}
 
 	// Getters
@@ -225,19 +243,12 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
 		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-
-			vscode.window.showInformationMessage(`Selected Shade`);
-
-			// how do force this to redraw the ???
 			this.OpenViewURI.forEach((val, key) => {
 				val._raw.shade_turbo()
 				const test = {content: val._raw._bitmap._data}
 				val._onDidChangeDocument.fire(test);
 			});
-		
 		}));
-
-		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) Turbo`;
 		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
 		context.subscriptions.push(GeoTIFFStatusBarInfo.itemColor);
 
@@ -260,7 +271,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 								}
 							}
 						}
-					} 
+					}
 				});
 
 				if(found == false){
@@ -322,7 +333,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 					content: e.content,
 				});
 			}
-			GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
 		}));
 
 		document.onDidDispose(() => disposeAll(listeners));
