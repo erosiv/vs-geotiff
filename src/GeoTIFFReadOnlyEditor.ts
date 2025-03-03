@@ -21,67 +21,35 @@ class GeoTIFFRaw {
 		this._height = _height;
 	}
 
-	public static empty(): GeoTIFFRaw {
-		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
-	}
-
-	public static create(rawdata: Uint8Array): GeoTIFFRaw {
-
-		const ifd = tiff.decode(rawdata)[0]
-		const header_size = 70;
+	public static shade_linear(ifd: tiff.TiffIfd): Uint8Array {
 
 		const width = ifd.width;
 		const height = ifd.height;
+
+		const header_size = 70;
 		const image_size = width * height * 4;
-
 		const arr = new Uint8Array(header_size + image_size);
+
 		const view = new DataView(arr.buffer);
-		// BM magic number.
-		view.setUint16(0, 0x424D, false);
-		// File size.
-		view.setUint32(2, arr.length, true);
-		// Offset to image data.
-		view.setUint32(10, header_size, true);
-
-		// BITMAPINFOHEADER
-
-		// Size of BITMAPINFOHEADER
-		view.setUint32(14, 40, true);
-		// Width
-		view.setInt32(18, width, true);
-		// Height (signed because negative values flip
-		// the image vertically).
-		view.setInt32(22, height, true);
-		// Number of colour planes (colours stored as
-		// separate images; must be 1).
-		view.setUint16(26, 1, true);
-		// Bits per pixel.
-		view.setUint16(28, 32, true);
-		// Compression method, 6 = BI_ALPHABITFIELDS
-		view.setUint32(30, 6, true);
-		// Image size in bytes.
-		view.setUint32(34, image_size, true);
-		// Horizontal resolution, pixels per metre.
-		// This will be unused in this situation.
-		view.setInt32(38, 10000, true);
-		// Vertical resolution, pixels per metre.
-		view.setInt32(42, 10000, true);
-		// Number of colours. 0 = all
-		view.setUint32(46, 0, true);
-		// Number of important colours. 0 = all
-		view.setUint32(50, 0, true);
-
-		// Colour table. Because we used BI_ALPHABITFIELDS
-		// this specifies the R, G, B and A bitmasks.
-
-		// Red
-		view.setUint32(54, 0x000000FF, true);
-		// Green
-		view.setUint32(58, 0x0000FF00, true);
-		// Blue
-		view.setUint32(62, 0x00FF0000, true);
-		// Alpha
-		view.setUint32(66, 0xFF000000, true);
+				
+		view.setUint16(0, 0x424D, false);				// BM magic number.
+		view.setUint32(2, arr.length, true);		// File size.
+		view.setUint32(10, header_size, true);	// Offset to image data.
+		view.setUint32(14, 40, true);						// Size of BITMAPINFOHEADER
+		view.setInt32(18, width, true);					// Width
+		view.setInt32(22, height, true);				// Height (signed because negative values flip the image vertically).
+		view.setUint16(26, 1, true);						// Number of colour planes (colours stored as separate images; must be 1).
+		view.setUint16(28, 32, true);						// Bits per pixel.
+		view.setUint32(30, 6, true);						// Compression method, 6 = BI_ALPHABITFIELDS
+		view.setUint32(34, image_size, true);		// Image size in bytes.
+		view.setInt32(38, 10000, true);					// Horizontal resolution, pixels per metre. This will be unused in this situation.
+		view.setInt32(42, 10000, true);					// Vertical resolution, pixels per metre.
+		view.setUint32(46, 0, true);						// Number of colours. 0 = all
+		view.setUint32(50, 0, true);						// Number of important colours. 0 = all
+		view.setUint32(54, 0x000000FF, true);		// Red Bitmask
+		view.setUint32(58, 0x0000FF00, true);		// Green Bitmask
+		view.setUint32(62, 0x00FF0000, true);		// Blue Bitmask
+		view.setUint32(66, 0xFF000000, true);		// Alpha Bitmask
 
 		// Find min and max of image
 		let min = Number.MAX_VALUE
@@ -107,8 +75,24 @@ class GeoTIFFRaw {
 			}
 		}
 
+		return arr;
+
+	}
+
+	public static empty(): GeoTIFFRaw {
+		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
+	}
+
+	public static create(rawdata: Uint8Array): GeoTIFFRaw {
+
+		const ifd = tiff.decode(rawdata)[0]
+
 		const kbytes = rawdata.length/1000;
-		return new GeoTIFFRaw(arr, kbytes, width, height)
+		const width = ifd.width;
+		const height = ifd.height;
+		const bmp = this.shade_linear(ifd)
+
+		return new GeoTIFFRaw(bmp, kbytes, width, height)
 
 	}
 
