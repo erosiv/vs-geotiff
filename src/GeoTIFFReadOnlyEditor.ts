@@ -8,52 +8,51 @@ type DataArray = Uint8Array | Uint16Array | Float32Array;
 
 class GeoTIFFRaw {
 	
-	readonly _raw: DataArray;
-	readonly _bytes: number;
-	readonly _width: number;
-	readonly _height: number;
-	public _min: number = 0.0;
-	public _max: number = 0.0;
+	private readonly _raw: DataArray;
+	private readonly _bytes: number;
+	private readonly _min: number;
+	private readonly _max: number;
 	_bitmap: Bitmap;
 
-	constructor(
-		_raw: DataArray,
-		_bytes: number,
-		_width: number,
-		_height: number,
-	){
-		this._raw = _raw;
-		this._bytes = _bytes;
-		this._width = _width;
-		this._height = _height;
-		this._bitmap = new Bitmap(_width, _height)
-	}
+	constructor(source: Uint8Array | undefined){
 
-	public static empty(): GeoTIFFRaw {
-		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
-	}
+		if(source instanceof Uint8Array){
 
-	public static create(rawdata: Uint8Array): GeoTIFFRaw {
+			const ifd = tiff.decode(source)[0]
+			const kbytes = source.length/1000;
+			const width = ifd.width;
+			const height = ifd.height;
 
-		const ifd = tiff.decode(rawdata)[0]
-		const kbytes = rawdata.length/1000;
-		const width = ifd.width;
-		const height = ifd.height;
+			this._raw = ifd.data;
+			this._bytes = kbytes;
+			this._bitmap = new Bitmap(width, height)
+			
+			this._min = Number.MAX_VALUE
+			this._max = Number.MIN_VALUE
+			for(let p = 0; p < width*height; ++p){
+				const val = ifd.data[p];
+				this._min = Math.min(this._min, val)
+				this._max = Math.max(this._max, val)
+			}
 
-		let geotiff = new GeoTIFFRaw(ifd.data, kbytes, width, height)
+		} else {
 
-		// Find min and max of image
-		geotiff._min = Number.MAX_VALUE
-		geotiff._max = Number.MIN_VALUE
-		for(let p = 0; p < width*height; ++p){
-			const val = ifd.data[p];
-			geotiff._min = Math.min(geotiff._min, val)
-			geotiff._max = Math.max(geotiff._max, val)
+			this._raw = new Float32Array()
+			this._bytes = 0
+			this._bitmap = new Bitmap(0, 0)
+			this._min = 0.0
+			this._max = 0.0
+
 		}
 
-		return geotiff
-
 	}
+
+	public get bytes() { return this._bytes; }
+	public get width() { return this._bitmap._width; }
+	public get height() { return this._bitmap._height; }
+
+	public get min() { return this._min }
+	public get max() { return this._max }
 
 	//
 	// Shading Functions
@@ -91,9 +90,9 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 	private static async readFile(uri: vscode.Uri): Promise<GeoTIFFRaw> {
 		if (uri.scheme === 'untitled') {
-			return GeoTIFFRaw.empty();
+			return new GeoTIFFRaw(undefined);
 		}
-		const file = GeoTIFFRaw.create(await vscode.workspace.fs.readFile(uri));
+		const file = new GeoTIFFRaw(await vscode.workspace.fs.readFile(uri))
 		file.shade_grayscale()
 		return file;
 	}
@@ -180,15 +179,15 @@ class GeoTIFFStatusBarInfo {
 		
 		GeoTIFFStatusBarInfo.itemColor.show();
 
-		GeoTIFFStatusBarInfo.itemShape.text = `${document._raw._width}x${document._raw._height}`;
+		GeoTIFFStatusBarInfo.itemShape.text = `${document._raw.width}x${document._raw.height}`;
 		GeoTIFFStatusBarInfo.itemShape.show();
 
-		if(document._raw._bytes > 1000){
-			GeoTIFFStatusBarInfo.itemBytes.text = `${(document._raw._bytes / 1000).toFixed(2)}MB`;
+		if(document._raw.bytes > 1000){
+			GeoTIFFStatusBarInfo.itemBytes.text = `${(document._raw.bytes / 1000).toFixed(2)}MB`;
 			GeoTIFFStatusBarInfo.itemBytes.show();
 		} else {
 
-			GeoTIFFStatusBarInfo.itemBytes.text = `${document._raw._bytes.toFixed(2)}KB`;
+			GeoTIFFStatusBarInfo.itemBytes.text = `${document._raw.bytes.toFixed(2)}KB`;
 			GeoTIFFStatusBarInfo.itemBytes.show();
 		}
 
