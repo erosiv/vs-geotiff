@@ -212,36 +212,39 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 class GeoTIFFStatusBarInfo {
 
+	static itemColor: vscode.StatusBarItem;
 	static itemShape: vscode.StatusBarItem;
 	static itemBytes: vscode.StatusBarItem;
 
 	public static register(context: vscode.ExtensionContext): void {
 
+	 	GeoTIFFStatusBarInfo.itemColor = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		GeoTIFFStatusBarInfo.itemShape = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		GeoTIFFStatusBarInfo.itemBytes = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
-//		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
-//		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-//			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
-//			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
-//		}));
+//		symbol-color
 
-		// create a new status bar item that we can now manage
-//		GeoTIFFStatusBarInfo.itemShape.command = myCommandId;
+		const myCommandId = 'vs-geotiff.GeoTIFFInfo.shade';
+		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
+			vscode.window.showInformationMessage(`Selected Shade`);
+		}));
+
+		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) Turbo`;
+		GeoTIFFStatusBarInfo.itemColor.command = myCommandId;
+		context.subscriptions.push(GeoTIFFStatusBarInfo.itemColor);
 	
-
-//		context.subscriptions.push(GeoTIFFStatusBarInfo.itemBytes);
-//		context.subscriptions.push(GeoTIFFStatusBarInfo.itemShape);
-
 	}
 
 	public static hideStatusBar(): void {
+		this.itemColor.hide();
 		this.itemShape.hide();
 		this.itemBytes.hide();
 	}
 
 	public static updateStatusBar(document: GeoTIFFDocument): void {
 		
+		GeoTIFFStatusBarInfo.itemColor.show();
+
 		GeoTIFFStatusBarInfo.itemShape.text = `${document._raw._width}x${document._raw._height}`;
 		GeoTIFFStatusBarInfo.itemShape.show();
 
