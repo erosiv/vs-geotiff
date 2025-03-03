@@ -11,37 +11,21 @@ class GeoTIFFRaw {
 
 	constructor(
 		_documentData: Uint8Array,
-		_width: Number,
-		_height: Number,
+		_bytes: number,
+		_width: number,
+		_height: number,
 	){
 		this._documentData = _documentData;
+		this._bytes = _bytes;
 		this._width = _width;
 		this._height = _height;
 	}
 
-	readonly _documentData: Uint8Array;
-	readonly _width: Number;
-	readonly _height: Number;
-
-}
-
-/**
- * Define the document (the data model) used for paw draw files.
- */
-class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
-
-	static async create(
-		uri: vscode.Uri,
-		backupId: string | undefined,
-		delegate: GeoTIFFDocumentDelegate,
-	): Promise<GeoTIFFDocument | PromiseLike<GeoTIFFDocument>> {
-		// If we have a backup, read that. Otherwise read the resource from the workspace
-		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
-		const fileData = await GeoTIFFDocument.readFile(dataFile);
-		return new GeoTIFFDocument(uri, fileData, delegate);
+	public static empty(): GeoTIFFRaw {
+		return new GeoTIFFRaw(new Uint8Array(), 0, 0, 0);
 	}
 
-	static constructTIFF(rawdata: Uint8Array): GeoTIFFRaw {
+	public static create(rawdata: Uint8Array): GeoTIFFRaw {
 
 		const ifd = tiff.decode(rawdata)[0]
 		const header_size = 70;
@@ -123,18 +107,40 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 			}
 		}
 
-		return new GeoTIFFRaw(arr, width, height)
+		const kbytes = rawdata.length/1000;
+		return new GeoTIFFRaw(arr, kbytes, width, height)
 
+	}
+
+	readonly _documentData: Uint8Array;
+	readonly _bytes: number;
+	readonly _width: number;
+	readonly _height: number;
+
+}
+
+/**
+ * Define the document (the data model) used for paw draw files.
+ */
+class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
+
+	static async create(
+		uri: vscode.Uri,
+		backupId: string | undefined,
+		delegate: GeoTIFFDocumentDelegate,
+	): Promise<GeoTIFFDocument | PromiseLike<GeoTIFFDocument>> {
+		// If we have a backup, read that. Otherwise read the resource from the workspace
+		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
+		const fileData = await GeoTIFFDocument.readFile(dataFile);
+		return new GeoTIFFDocument(uri, fileData, delegate);
 	}
 
 	private static async readFile(uri: vscode.Uri): Promise<GeoTIFFRaw> {
 		if (uri.scheme === 'untitled') {
-			return new GeoTIFFRaw(new Uint8Array(), 0, 0);
+			return GeoTIFFRaw.empty();
 		}
-
 		const output = new Uint8Array(await vscode.workspace.fs.readFile(uri));
-		return this.constructTIFF(output)
-
+		return GeoTIFFRaw.create(output);
 	}
 
 	private readonly _uri: vscode.Uri;
@@ -197,32 +203,47 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 class GeoTIFFStatusBarInfo {
 
-	static myStatusBarItem: vscode.StatusBarItem;
+	static itemShape: vscode.StatusBarItem;
+	static itemBytes: vscode.StatusBarItem;
 
 	public static register(context: vscode.ExtensionContext): void {
-		GeoTIFFStatusBarInfo.myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
-		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
-		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
-			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
-		}));
+		GeoTIFFStatusBarInfo.itemShape = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+		GeoTIFFStatusBarInfo.itemBytes = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+
+//		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
+//		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
+//			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
+//			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
+//		}));
 
 		// create a new status bar item that we can now manage
-		GeoTIFFStatusBarInfo.myStatusBarItem.command = myCommandId;
-		context.subscriptions.push(GeoTIFFStatusBarInfo.myStatusBarItem);
+//		GeoTIFFStatusBarInfo.itemShape.command = myCommandId;
+	
+
+//		context.subscriptions.push(GeoTIFFStatusBarInfo.itemBytes);
+//		context.subscriptions.push(GeoTIFFStatusBarInfo.itemShape);
 
 	}
 
 	public static hideStatusBar(): void {
-		this.myStatusBarItem.hide();
+		this.itemShape.hide();
+		this.itemBytes.hide();
 	}
 
 	public static updateStatusBar(document: GeoTIFFDocument): void {
+		
+		GeoTIFFStatusBarInfo.itemShape.text = `${document._raw._width}x${document._raw._height}`;
+		GeoTIFFStatusBarInfo.itemShape.show();
 
-		// this.myStatusBarItem.text = `$(megaphone) ${n} line(s) selected`;
-		GeoTIFFStatusBarInfo.myStatusBarItem.text = `${document._raw._width} x ${document._raw._height}`;
-		GeoTIFFStatusBarInfo.myStatusBarItem.show();
+		if(document._raw._bytes > 1000){
+			GeoTIFFStatusBarInfo.itemBytes.text = `${(document._raw._bytes / 1000).toFixed(2)}MB`;
+			GeoTIFFStatusBarInfo.itemBytes.show();
+		} else {
+
+			GeoTIFFStatusBarInfo.itemBytes.text = `${document._raw._bytes.toFixed(2)}KB`;
+			GeoTIFFStatusBarInfo.itemBytes.show();
+		}
 
 	}
 
