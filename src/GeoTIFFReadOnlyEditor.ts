@@ -68,6 +68,46 @@ class GeoTIFFRaw {
 
 }
 
+class GeoTIFFStatusBarInfo {
+
+	static itemColor: vscode.StatusBarItem;
+	static itemShape: vscode.StatusBarItem;
+	static itemBytes: vscode.StatusBarItem;
+
+	public static register(context: vscode.ExtensionContext): void {
+
+	 	GeoTIFFStatusBarInfo.itemColor = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+		GeoTIFFStatusBarInfo.itemShape = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+		GeoTIFFStatusBarInfo.itemBytes = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	
+	}
+
+	public static hideStatusBar(): void {
+		this.itemColor.hide();
+		this.itemShape.hide();
+		this.itemBytes.hide();
+	}
+
+	public static updateStatusBar(geotiff: GeoTIFFRaw): void {
+		
+		GeoTIFFStatusBarInfo.itemColor.show();
+
+		GeoTIFFStatusBarInfo.itemShape.text = `${geotiff.width}x${geotiff.height}`;
+		GeoTIFFStatusBarInfo.itemShape.show();
+
+		if(geotiff.bytes > 1000){
+			GeoTIFFStatusBarInfo.itemBytes.text = `${(geotiff.bytes / 1000).toFixed(2)}MB`;
+			GeoTIFFStatusBarInfo.itemBytes.show();
+		} else {
+
+			GeoTIFFStatusBarInfo.itemBytes.text = `${geotiff.bytes.toFixed(2)}KB`;
+			GeoTIFFStatusBarInfo.itemBytes.show();
+		}
+
+	}
+
+}
+
 interface GeoTIFFDocumentDelegate {
 	getFileData(): Promise<Uint8Array>;
 }
@@ -76,6 +116,21 @@ interface GeoTIFFDocumentDelegate {
  * Define the document (the data model) used for paw draw files.
  */
 class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
+
+	private readonly _uri: vscode.Uri;
+	private readonly _delegate: GeoTIFFDocumentDelegate;
+	readonly _raw: GeoTIFFRaw;
+
+	private constructor(
+		uri: vscode.Uri,
+		raw: GeoTIFFRaw,
+		delegate: GeoTIFFDocumentDelegate
+	) {
+		super();
+		this._uri = uri;
+		this._raw = raw;
+		this._delegate = delegate;
+	}
 
 	static async create(
 		uri: vscode.Uri,
@@ -97,38 +152,20 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		return file;
 	}
 
-	private readonly _uri: vscode.Uri;
-	private readonly _delegate: GeoTIFFDocumentDelegate;
-	readonly _raw: GeoTIFFRaw;
-
-	private constructor(
-		uri: vscode.Uri,
-		raw: GeoTIFFRaw,
-		delegate: GeoTIFFDocumentDelegate
-	) {
-		super();
-		this._uri = uri;
-		this._raw = raw;
-		this._delegate = delegate;
-	}
+	// Getters
 
 	public get uri() { return this._uri; }
-
+	public get raw() { return this._raw; }
 	public get documentData(): Uint8Array { return this._raw._bitmap._data; }
 
+	// Event Handlers
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
-	/**
-	 * Fired when the document is disposed of.
-	 */
 	public readonly onDidDispose = this._onDidDispose.event;
 
 	public readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
 		readonly content?: Uint8Array;
 	}>());
-	/**
-	 * Fired to notify webviews that the document has changed.
-	 */
 	public readonly onDidChangeContent = this._onDidChangeDocument.event;
 
 	public readonly _onDidChange = this._register(new vscode.EventEmitter<{
@@ -136,61 +173,11 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		undo(): void,
 		redo(): void,
 	}>());
-	/**
-	 * Fired to tell VS Code that an edit has occurred in the document.
-	 *
-	 * This updates the document's dirty indicator.
-	 */
 	public readonly onDidChange = this._onDidChange.event;
 
-	/**
-	 * Called by VS Code when there are no more references to the document.
-	 *
-	 * This happens when all editors for it have been closed.
-	 */
 	dispose(): void {
 		this._onDidDispose.fire();
 		super.dispose();
-	}
-
-}
-
-class GeoTIFFStatusBarInfo {
-
-	static itemColor: vscode.StatusBarItem;
-	static itemShape: vscode.StatusBarItem;
-	static itemBytes: vscode.StatusBarItem;
-
-	public static register(context: vscode.ExtensionContext): void {
-
-	 	GeoTIFFStatusBarInfo.itemColor = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-		GeoTIFFStatusBarInfo.itemShape = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-		GeoTIFFStatusBarInfo.itemBytes = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	
-	}
-
-	public static hideStatusBar(): void {
-		this.itemColor.hide();
-		this.itemShape.hide();
-		this.itemBytes.hide();
-	}
-
-	public static updateStatusBar(document: GeoTIFFDocument): void {
-		
-		GeoTIFFStatusBarInfo.itemColor.show();
-
-		GeoTIFFStatusBarInfo.itemShape.text = `${document._raw.width}x${document._raw.height}`;
-		GeoTIFFStatusBarInfo.itemShape.show();
-
-		if(document._raw.bytes > 1000){
-			GeoTIFFStatusBarInfo.itemBytes.text = `${(document._raw.bytes / 1000).toFixed(2)}MB`;
-			GeoTIFFStatusBarInfo.itemBytes.show();
-		} else {
-
-			GeoTIFFStatusBarInfo.itemBytes.text = `${document._raw.bytes.toFixed(2)}KB`;
-			GeoTIFFStatusBarInfo.itemBytes.show();
-		}
-
 	}
 
 }
@@ -268,7 +255,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 							if(changed.isActive){
 								let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(changed.input.uri.path)
 								if(document instanceof GeoTIFFDocument){
-									GeoTIFFStatusBarInfo.updateStatusBar(document);
+									GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
 									found = true;
 								}
 							}
@@ -321,7 +308,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		});
 
 		GeoTIFFReadOnlyEditorProvider.OpenViewURI.set(document.uri.path, document);
-		GeoTIFFStatusBarInfo.updateStatusBar(document);
+		GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
 
 		const listeners: vscode.Disposable[] = [];
 
@@ -335,7 +322,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 					content: e.content,
 				});
 			}
-			GeoTIFFStatusBarInfo.updateStatusBar(document);
+			GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
 		}));
 
 		document.onDidDispose(() => disposeAll(listeners));
