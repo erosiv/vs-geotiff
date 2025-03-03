@@ -364,15 +364,6 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 			</head>
 			<body>
 				<div class="drawing-canvas"></div>
-
-				<div class="drawing-controls">
-					<button data-color="black" class="black active" title="Black"></button>
-					<button data-color="white" class="white" title="White"></button>
-					<button data-color="red" class="red" title="Red"></button>
-					<button data-color="green" class="green" title="Green"></button>
-					<button data-color="blue" class="blue" title="Blue"></button>
-				</div>
-
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 			</body>
 			</html>`;
