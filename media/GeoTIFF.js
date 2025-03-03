@@ -37,8 +37,26 @@
 		_initElements(/** @type {HTMLElement} */ parent) {
 
 			this.wrapper = document.createElement('div');
-			this.wrapper.style.position = 'relative';
 			parent.append(this.wrapper);
+
+			this.zoom = 1.0
+
+			const onScroll = (event, editor) => {
+				console.log(event)
+				if(event.ctrlKey){
+					if(event.deltaY > 0.0){
+						editor.zoom /= 1.1;
+					} else if(event.deltaY < 0.0){
+						editor.zoom *= 1.1;
+					}
+					editor.wrapper.style.transform = "scaleX("+editor.zoom+") scaleY("+editor.zoom+")"	
+				}
+				event.preventDefault()
+			}
+			
+			window.addEventListener('wheel', (event) => {
+				onScroll(event, this)
+			})
 
 			this.initialCanvas = document.createElement('canvas');
 			this.initialCtx = this.initialCanvas.getContext('2d');
