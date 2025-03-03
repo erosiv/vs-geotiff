@@ -44,13 +44,6 @@
 			this.initialCtx = this.initialCanvas.getContext('2d');
 			this.wrapper.append(this.initialCanvas);
 
-			this.drawingCanvas = document.createElement('canvas');
-			this.drawingCanvas.style.position = 'absolute';
-			this.drawingCanvas.style.top = '0';
-			this.drawingCanvas.style.left = '0';
-			this.drawingCtx = this.drawingCanvas.getContext('2d');
-			this.wrapper.append(this.drawingCanvas);
-
 		}
 
 		/**
@@ -59,8 +52,8 @@
 		async reset(data) {
 			if (data) {
 				const img = await loadImageFromData(data);
-				this.initialCanvas.width = this.drawingCanvas.width = img.naturalWidth;
-				this.initialCanvas.height = this.drawingCanvas.height = img.naturalHeight;
+				this.initialCanvas.width = img.naturalWidth;
+				this.initialCanvas.height = img.naturalHeight;
 				this.initialCtx.drawImage(img, 0, 0);
 				this.ready = true;
 			}
@@ -68,8 +61,8 @@
 
 		async resetUntitled() {
 			const size = 100;
-			this.initialCanvas.width = this.drawingCanvas.width = size;
-			this.initialCanvas.height = this.drawingCanvas.height = size;
+			this.initialCanvas.width = size;
+			this.initialCanvas.height = size;
 
 			this.initialCtx.save();
 			{
@@ -83,12 +76,11 @@
 		/** @return {Promise<Uint8Array>} */
 		async getImageData() {
 			const outCanvas = document.createElement('canvas');
-			outCanvas.width = this.drawingCanvas.width;
-			outCanvas.height = this.drawingCanvas.height;
+			outCanvas.width = this.initialCanvas.width;
+			outCanvas.height = this.initialCanvas.height;
 
 			const outCtx = outCanvas.getContext('2d');
 			outCtx.drawImage(this.initialCanvas, 0, 0);
-			outCtx.drawImage(this.drawingCanvas, 0, 0);
 
 			const blob = await new Promise(resolve => {
 				outCanvas.toBlob(resolve, 'image/png')

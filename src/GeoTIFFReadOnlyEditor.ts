@@ -105,7 +105,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 				arr[offset + 0] = 255*val;  // R value
 				arr[offset + 1] = 255*val;  // G value
 				arr[offset + 2] = 255*val; 	// B value
-				arr[offset + 3] = 255*val; 	// A value
+				arr[offset + 3] = 255;//255*val; 	// A value
 			}
 		}
 
@@ -328,7 +328,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 	private getHtmlForWebview(webview: vscode.Webview): string {
 		// Local path to script and css for the webview
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this._context.extensionUri, 'media', 'pawDraw.js'));
+			this._context.extensionUri, 'media', 'GeoTIFF.js'));
 
 		const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(
 			this._context.extensionUri, 'media', 'reset.css'));
@@ -337,7 +337,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 			this._context.extensionUri, 'media', 'vscode.css'));
 
 		const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this._context.extensionUri, 'media', 'pawDraw.css'));
+			this._context.extensionUri, 'media', 'GeoTIFF.css'));
 
 		// Use a nonce to whitelist which scripts can be run
 		const nonce = getNonce();

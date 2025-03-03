@@ -28,7 +28,7 @@
 						"filenamePattern": "*.tiff"
 					},
 					{
-						"filenamePattern": "*.jpeg"
+						"filenamePattern": "*.tif"
 					}
 				]
 			}
