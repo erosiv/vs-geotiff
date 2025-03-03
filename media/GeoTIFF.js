@@ -39,25 +39,51 @@
 			this.wrapper = document.createElement('div');
 			parent.append(this.wrapper);
 
+			this.posx = 0.0
+			this.posy = 0.0
 			this.zoom = 1.0
+			this.held = false
+
+			const getTransform = (editor) => {
+				return "scaleX("+editor.zoom+") scaleY("+editor.zoom+") translateX("+editor.posx+"px) translateY("+editor.posy+"px)";
+			}
 
 			const onScroll = (event, editor) => {
-				console.log(event)
 				if(event.ctrlKey){
 					if(event.deltaY > 0.0){
 						editor.zoom /= 1.1;
 					} else if(event.deltaY < 0.0){
 						editor.zoom *= 1.1;
 					}
-					editor.wrapper.style.transform = "scaleX("+editor.zoom+") scaleY("+editor.zoom+")"	
+					editor.wrapper.style.transform = getTransform(editor)
+					event.preventDefault()
 				}
-				event.preventDefault()
 			}
-			
+
+			const onMouseMove = (event, editor) => {
+				if(editor.held){
+					editor.posx += event.movementX/editor.zoom;
+					editor.posy += event.movementY/editor.zoom;
+					editor.wrapper.style.transform = getTransform(editor)
+				}
+			}
+
+			this.wrapper.addEventListener('mousedown', (event) => {
+				this.held = true;
+			})
+
+			window.addEventListener('mouseup', (event) => {
+				this.held = false;
+			})
+
 			window.addEventListener('wheel', (event) => {
 				onScroll(event, this)
 			})
 
+			window.addEventListener('mousemove', (event) => {
+				onMouseMove(event, this)
+			})
+			
 			this.initialCanvas = document.createElement('canvas');
 			this.initialCtx = this.initialCanvas.getContext('2d');
 			this.wrapper.append(this.initialCanvas);
