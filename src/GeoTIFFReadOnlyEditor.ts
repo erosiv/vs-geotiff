@@ -3,10 +3,11 @@ import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
 import {shade_grayscale, shade_turbo} from './shade'
+type DataArray = Uint8Array | Uint16Array | Float32Array;
 
 class GeoTIFFRaw {
 
-	readonly _rawData: Uint8Array;
+	readonly _raw: DataArray;
 	readonly _bytes: number;
 	readonly _width: number;
 	readonly _height: number;
@@ -15,16 +16,16 @@ class GeoTIFFRaw {
 	_bitmap: Uint8Array;
 
 	constructor(
-		_rawData: Uint8Array,
+		_raw: DataArray,
 		_bytes: number,
 		_width: number,
 		_height: number,
 	){
-		this._rawData = _rawData;
-		this._bitmap = new Uint8Array();
+		this._raw = _raw;
 		this._bytes = _bytes;
 		this._width = _width;
 		this._height = _height;
+		this._bitmap = new Uint8Array();
 	}
 
 	public static empty(): GeoTIFFRaw {
@@ -38,7 +39,7 @@ class GeoTIFFRaw {
 		const width = ifd.width;
 		const height = ifd.height;
 
-		let geotiff = new GeoTIFFRaw(rawdata, kbytes, width, height)
+		let geotiff = new GeoTIFFRaw(ifd.data, kbytes, width, height)
 
 		// Find min and max of image
 		geotiff._min = Number.MAX_VALUE
@@ -49,6 +50,10 @@ class GeoTIFFRaw {
 			geotiff._max = Math.max(geotiff._max, val)
 		}
 
+		const pixels = width * height;
+		const header_size = 70;
+		const image_size = 4 * pixels;
+		geotiff._bitmap = new Uint8Array(header_size + image_size);
 		return geotiff
 
 	}
@@ -59,24 +64,17 @@ class GeoTIFFRaw {
 
 	public shade_turbo(): void {
 
-		const ifd = tiff.decode(this._rawData)[0]
-
-		const width = this._width;
-		const height = this._height;
-		const pixels = width * height;
-
+		const pixels = this._width * this._height;
 		const header_size = 70;
 		const image_size = 4 * pixels;
-
-		this._bitmap = new Uint8Array(header_size + image_size);
 		const view = new DataView(this._bitmap.buffer);
 				
 		view.setUint16(0, 0x424D, false);							// BM magic number.
 		view.setUint32(2, this._bitmap.length, true);	// File size.
 		view.setUint32(10, header_size, true);				// Offset to image data.
 		view.setUint32(14, 40, true);									// Size of BITMAPINFOHEADER
-		view.setInt32(18, width, true);								// Width
-		view.setInt32(22, height, true);							// Height (signed because negative values flip the image vertically).
+		view.setInt32(18, this._width, true);					// Width
+		view.setInt32(22, this._height, true);				// Height (signed because negative values flip the image vertically).
 		view.setUint16(26, 1, true);									// Number of colour planes (colours stored as separate images; must be 1).
 		view.setUint16(28, 32, true);									// Bits per pixel.
 		view.setUint32(30, 6, true);									// Compression method, 6 = BI_ALPHABITFIELDS
@@ -90,30 +88,24 @@ class GeoTIFFRaw {
 		view.setUint32(62, 0x00FF0000, true);					// Blue Bitmask
 		view.setUint32(66, 0xFF000000, true);					// Alpha Bitmask
 
-		shade_turbo(ifd.data, width, height, this._min, this._max, this._bitmap, header_size)
+		shade_turbo(this._raw, this._width, this._height, this._min, this._max, this._bitmap, header_size)
 
 	}
 
 	public shade_linear(): void {
 
-		const ifd = tiff.decode(this._rawData)[0]
-
-		const width = this._width;
-		const height = this._height;
-		const pixels = width * height;
-
+		const pixels = this._width * this._height;
 		const header_size = 70;
 		const image_size = 4 * pixels;
 
-		this._bitmap = new Uint8Array(header_size + image_size);
 		const view = new DataView(this._bitmap.buffer);
 				
 		view.setUint16(0, 0x424D, false);							// BM magic number.
 		view.setUint32(2, this._bitmap.length, true);	// File size.
 		view.setUint32(10, header_size, true);				// Offset to image data.
 		view.setUint32(14, 40, true);									// Size of BITMAPINFOHEADER
-		view.setInt32(18, width, true);								// Width
-		view.setInt32(22, height, true);							// Height (signed because negative values flip the image vertically).
+		view.setInt32(18, this._width, true);					// Width
+		view.setInt32(22, this._height, true);				// Height (signed because negative values flip the image vertically).
 		view.setUint16(26, 1, true);									// Number of colour planes (colours stored as separate images; must be 1).
 		view.setUint16(28, 32, true);									// Bits per pixel.
 		view.setUint32(30, 6, true);									// Compression method, 6 = BI_ALPHABITFIELDS
@@ -127,7 +119,7 @@ class GeoTIFFRaw {
 		view.setUint32(62, 0x00FF0000, true);					// Blue Bitmask
 		view.setUint32(66, 0xFF000000, true);					// Alpha Bitmask
 
-		shade_grayscale(ifd.data, width, height, this._min, this._max, this._bitmap, header_size)
+		shade_grayscale(this._raw, this._width, this._height, this._min, this._max, this._bitmap, header_size)
 
 	}
 
