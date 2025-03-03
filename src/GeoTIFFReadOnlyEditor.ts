@@ -3,46 +3,6 @@ import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
 import * as tiff from 'tiff'
 
-export class GeoTIFFStatusBarInfo {
-
-	static myStatusBarItem: vscode.StatusBarItem;
-
-	public static register(context: vscode.ExtensionContext): void {
-
-		// register a command that is invoked when the status bar
-		// item is selected
-		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
-		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
-			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
-			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
-		}));
-
-		// create a new status bar item that we can now manage
-		GeoTIFFStatusBarInfo.myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-		GeoTIFFStatusBarInfo.myStatusBarItem.command = myCommandId;
-		context.subscriptions.push(GeoTIFFStatusBarInfo.myStatusBarItem);
-
-		// register some listener that make sure the status bar 
-		// item always up-to-date
-		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(GeoTIFFStatusBarInfo.updateStatusBarItem));
-
-		// update status bar item once at start
-		GeoTIFFStatusBarInfo.updateStatusBarItem();
-
-	}
-
-	public static updateStatusBarItem(): void {
-		const n = 100;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
-		if (n > 0) {
-			GeoTIFFStatusBarInfo.myStatusBarItem.text = `$(megaphone) ${n} line(s) selected`;
-			GeoTIFFStatusBarInfo.myStatusBarItem.show();
-		} else {
-			GeoTIFFStatusBarInfo.myStatusBarItem.hide();
-		}
-	}
-
-}
-
 interface GeoTIFFDocumentDelegate {
 	getFileData(): Promise<Uint8Array>;
 }
@@ -60,7 +20,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		// If we have a backup, read that. Otherwise read the resource from the workspace
 		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
 		const fileData = await GeoTIFFDocument.readFile(dataFile);
-		return new GeoTIFFDocument(uri, fileData, delegate);
+		return new GeoTIFFDocument(uri, fileData, 100, 200, delegate);
 	}
 
 	static constructTIFF(
@@ -167,15 +127,23 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	private _documentData: Uint8Array;
 	private readonly _delegate: GeoTIFFDocumentDelegate;
 
+	// 
+	readonly _width: Number;
+	readonly _height: Number;
+
 	private constructor(
 		uri: vscode.Uri,
 		initialContent: Uint8Array,
+		width: Number,
+		height: Number,
 		delegate: GeoTIFFDocumentDelegate
 	) {
 		super();
 		this._uri = uri;
 		this._documentData = initialContent;
 		this._delegate = delegate;
+		this._width = width;
+		this._height = height;
 	}
 
 	public get uri() { return this._uri; }
@@ -220,6 +188,46 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 
 }
 
+class GeoTIFFStatusBarInfo {
+
+	static myStatusBarItem: vscode.StatusBarItem;
+
+	public static register(context: vscode.ExtensionContext): void {
+		GeoTIFFStatusBarInfo.myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+
+		const myCommandId = 'vs-geotiff.GeoTIFFInfo.show';
+		context.subscriptions.push(vscode.commands.registerCommand(myCommandId, () => {
+			const n = 0;//getNumberOfSelectedLines(vscode.window.activeTextEditor);
+			vscode.window.showInformationMessage(`Yeah, ${n} line(s) selected... Keep going!`);
+		}));
+
+		// create a new status bar item that we can now manage
+		GeoTIFFStatusBarInfo.myStatusBarItem.command = myCommandId;
+		context.subscriptions.push(GeoTIFFStatusBarInfo.myStatusBarItem);
+
+		// register some listener that make sure the status bar 
+		// item always up-to-date
+		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(this.hideStatusBar));
+
+		// update status bar item once at start
+		//this.updateStatusBar();
+
+	}
+
+	public static hideStatusBar(): void {
+		this.myStatusBarItem.hide();
+	}
+
+	public static updateStatusBar(document: GeoTIFFDocument): void {
+
+		// this.myStatusBarItem.text = `$(megaphone) ${n} line(s) selected`;
+		GeoTIFFStatusBarInfo.myStatusBarItem.text = `${document._width} x ${document._height}`;
+		GeoTIFFStatusBarInfo.myStatusBarItem.show();
+
+	}
+
+}
+
 /**
  * Provider for paw draw editors.
  *
@@ -237,48 +245,30 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
  */
 export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEditorProvider<GeoTIFFDocument> {
 
-	private static newGeoTIFFFileId = 1;
+	private static readonly viewType = 'vsGeoTIFF.GeoTIFF';
+	private readonly webviews = new WebviewCollection();
 
-	public static register(context: vscode.ExtensionContext): vscode.Disposable {
-		vscode.commands.registerCommand('vs-geotiff.GeoTIFF.new', () => {
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders) {
-				vscode.window.showErrorMessage("Creating new Paw Draw files currently requires opening a workspace");
-				return;
-			}
+	constructor(private readonly _context: vscode.ExtensionContext){}
 
-			const uri = vscode.Uri.joinPath(workspaceFolders[0].uri, `new-${GeoTIFFReadOnlyEditorProvider.newGeoTIFFFileId++}.tiff`)
-				.with({ scheme: 'untitled' });
+	public static register(context: vscode.ExtensionContext): void {
 
-			vscode.commands.executeCommand('vscode.openWith', uri, GeoTIFFReadOnlyEditorProvider.viewType);
-		});
-
-		return vscode.window.registerCustomEditorProvider(
+		// Register Custom Editor
+		context.subscriptions.push(vscode.window.registerCustomEditorProvider(
 			GeoTIFFReadOnlyEditorProvider.viewType,
 			new GeoTIFFReadOnlyEditorProvider(context),
 			{
-				// For this demo extension, we enable `retainContextWhenHidden` which keeps the
-				// webview alive even when it is not visible. You should avoid using this setting
-				// unless is absolutely required as it does have memory overhead.
-				webviewOptions: {
-					retainContextWhenHidden: true,
-				},
-				supportsMultipleEditorsPerDocument: false,
-			});
+			// For this demo extension, we enable `retainContextWhenHidden` which keeps the
+			// webview alive even when it is not visible. You should avoid using this setting
+			// unless is absolutely required as it does have memory overhead.
+			webviewOptions: {
+				retainContextWhenHidden: true,
+			},
+			supportsMultipleEditorsPerDocument: false,
+		}));
+
+		GeoTIFFStatusBarInfo.register(context);
+
 	}
-
-	private static readonly viewType = 'vsGeoTIFF.GeoTIFF';
-
-	/**
-	 * Tracks all known webviews
-	 */
-	private readonly webviews = new WebviewCollection();
-
-	constructor(
-		private readonly _context: vscode.ExtensionContext
-	) { }
-
-	//#region CustomEditorProvider
 
 	async openCustomDocument(
 		uri: vscode.Uri,
@@ -299,6 +289,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 		const listeners: vscode.Disposable[] = [];
 
+		GeoTIFFStatusBarInfo.updateStatusBar(document);
+
 		listeners.push(document.onDidChange(e => {
 			// Tell VS Code that the document has been edited by the use.
 			this._onDidChangeCustomDocument.fire({
@@ -314,6 +306,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 					content: e.content,
 				});
 			}
+		//	this.StatusBarInfo.updateStatusBar(document);
 		}));
 
 		document.onDidDispose(() => disposeAll(listeners));
