@@ -135,6 +135,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 	private readonly _delegate: GeoTIFFDocumentDelegate;
 	readonly _raw: GeoTIFFRaw;
 	private _visible: boolean;
+	public _instance: number;
 
 	private constructor(
 		uri: vscode.Uri,
@@ -147,6 +148,7 @@ class GeoTIFFDocument extends Disposable implements vscode.CustomDocument {
 		this._uri = uri;
 		this._raw = raw;
 		this._delegate = delegate;
+		this._instance = 1
 
 		this.onDidChangeContent(e => {
 			GeoTIFFStatusBarInfo.updateStatusBar(this.raw);
@@ -230,33 +232,60 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 	constructor(private readonly _context: vscode.ExtensionContext){}
 
-	private static selectTab(tab: vscode.Tab): boolean {
-		
-		if(!tab.isActive)
-			return false;
+	//
+	// Tab Selection Interface
+	//	Note that this is necessary as a hack around the vscode API,
+	//	since there are no events for custom editor focus changes.
+	//
 
-		if(tab.input instanceof vscode.TabInputCustom && tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-			let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
-			if(document instanceof GeoTIFFDocument){
-				document.visible = true
-				GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
-				return true;
+	private static openTab(tab: vscode.Tab){
+		if(tab.input instanceof vscode.TabInputCustom){
+			if(tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+				let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
+				if(document instanceof GeoTIFFDocument){
+					++document._instance;		
+				}
 			}
 		}
-
-		return false;
-
 	}
 
 	private static closeTab(tab: vscode.Tab) {
 		if(tab.input instanceof vscode.TabInputCustom){
 			if(tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-				GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(tab.input.uri.path)
+				let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
+				if(document instanceof GeoTIFFDocument){
+					--document._instance;		
+					if(document._instance == 0){
+						GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(tab.input.uri.path)
+					}
+				}
 			}
 		} 
 	}
 
+	private static selectTab(tab: vscode.Tab): boolean {
+		if(tab.isActive){
+			if(tab.input instanceof vscode.TabInputCustom && tab.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+				let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(tab.input.uri.path)
+				if(document instanceof GeoTIFFDocument){
+					document.visible = true
+					GeoTIFFStatusBarInfo.updateStatusBar(document.raw);
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private static changeTab(event: vscode.TabChangeEvent) {
+
+//		console.log("CHANGED TAB", event)
+
+		if(event.opened.length > 0){
+			event.opened.forEach( (tab: vscode.Tab) => {
+				this.openTab(tab)
+			})
+		}
 
 		if(event.changed.length > 0){
 
@@ -441,7 +470,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 						editable,
 					});
 				}
-				document.visible = true
+				document.visible = webviewPanel.active
 			}
 		});
 
