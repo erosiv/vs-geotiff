@@ -294,28 +294,45 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 		context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs((event) => {
 
-			GeoTIFFStatusBarInfo.hideStatusBar()
+			if(event.changed.length > 0){
 
-			event.closed.forEach( (closed: vscode.Tab) => {
-				if(closed.input instanceof vscode.TabInputCustom){
-					if(closed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-						GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(closed.input.uri.path)
-					}
-				} 
-			});
+				let found: boolean = false;
 
-			event.changed.forEach( (changed: vscode.Tab) => {
-				if(changed.input instanceof vscode.TabInputCustom){
-					if(changed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
-						if(changed.isActive){
-							let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(changed.input.uri.path)
-							if(document instanceof GeoTIFFDocument){
-								GeoTIFFStatusBarInfo.updateStatusBar(document);
+				event.changed.forEach( (changed: vscode.Tab) => {
+					if(changed.input instanceof vscode.TabInputCustom){
+						if(changed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+							if(changed.isActive){
+								let document = GeoTIFFReadOnlyEditorProvider.OpenViewURI.get(changed.input.uri.path)
+								if(document instanceof GeoTIFFDocument){
+									GeoTIFFStatusBarInfo.updateStatusBar(document);
+									found = true;
+								}
 							}
 						}
-					}
-				} 
-			});
+					} 
+				});
+
+				if(found == false){
+					GeoTIFFStatusBarInfo.hideStatusBar()
+				}
+
+			}
+
+			if(event.closed.length > 0){
+
+				event.closed.forEach( (closed: vscode.Tab) => {
+					if(closed.input instanceof vscode.TabInputCustom){
+						if(closed.input.viewType == GeoTIFFReadOnlyEditorProvider.viewType){
+							GeoTIFFReadOnlyEditorProvider.OpenViewURI.delete(closed.input.uri.path)
+						}
+					} 
+				});
+	
+				if(GeoTIFFReadOnlyEditorProvider.OpenViewURI.size == 0){
+					GeoTIFFStatusBarInfo.hideStatusBar()
+				}
+
+			}
 
 		}));
 
