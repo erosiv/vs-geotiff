@@ -1,4 +1,4 @@
-import { DataArray } from "tiff/lib/types";
+import { DataArray } from "erosiv-tiff/lib/types";
 
 export class Bitmap {
 
@@ -55,7 +55,14 @@ export function shade(bitmap: Bitmap, scheme: number[][], data: DataArray, min: 
       const offset = Bitmap.header + (h * bitmap._width + w) * 4;
       let val = data[h*bitmap._width + w];
       val = (val - min)/(max - min)
-      
+      if(isNaN(val)){
+        bitmap._data[offset + 0] = 0; // R value
+        bitmap._data[offset + 1] = 0; // G value
+        bitmap._data[offset + 2] = 0; // B value
+        bitmap._data[offset + 3] = 0;	// A value
+        continue;
+      }
+
       let x = Math.max(0.0, Math.min(1.0, val))
       let a = Math.floor(x*scheme_size)
       let b = Math.min(scheme_size, a + 1)

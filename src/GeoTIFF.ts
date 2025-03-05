@@ -1,6 +1,6 @@
-import * as tiff from 'tiff'
+import * as tiff from 'erosiv-tiff'
+import { DataArray } from "erosiv-tiff/lib/types";
 import {Bitmap, shade} from './Bitmap'
-import { DataArray } from "tiff/lib/types";
 import * as cmap from "./cmap"
 
 enum BitmapShading {
@@ -36,6 +36,8 @@ export class GeoTIFF {
       this._max = Number.MIN_VALUE
       for(let p = 0; p < width*height; ++p){
         const val = ifd.data[p];
+        if(isNaN(val)) 
+          continue;
         this._min = Math.min(this._min, val)
         this._max = Math.max(this._max, val)
       }
@@ -68,6 +70,7 @@ export class GeoTIFF {
   //
 
   public reshade(): Bitmap {
+
     if(this._shade == BitmapShading.Grayscale){
       this._shade = BitmapShading.Turbo;
       shade(this._bitmap, cmap.turbo, this._raw, this._min, this._max)	

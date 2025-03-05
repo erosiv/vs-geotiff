@@ -50,6 +50,6 @@
 		"typescript-eslint": "^8.16.0"
 	},
 	"dependencies": {
-		"tiff": "../tiff/tiff-6.1.1.tgz"
+		"erosiv-tiff": "^6.1.4"
 	}
 }
