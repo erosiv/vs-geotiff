@@ -3,7 +3,7 @@ import { DataArray } from "erosiv-tiff/lib/types";
 import {Bitmap, shade} from './Bitmap'
 import * as cmap from "./cmap"
 
-enum BitmapShading {
+export enum BitmapShading {
   None = "None",
   Grayscale = "Grayscale",
   Turbo = "Turbo",
@@ -69,18 +69,23 @@ export class GeoTIFF {
   // Shading Functions
   //
 
-  public reshade(): Bitmap {
+  public reshade(newShade: string): Bitmap {
 
-    if(this._shade == BitmapShading.Grayscale){
+    if(newShade == BitmapShading.Grayscale){
+      this._shade = BitmapShading.Grayscale;
+      shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)	
+    }
+
+    else if(newShade == BitmapShading.Turbo){
       this._shade = BitmapShading.Turbo;
       shade(this._bitmap, cmap.turbo, this._raw, this._min, this._max)	
-    } else if(this._shade == BitmapShading.Turbo) {
-      this._shade = BitmapShading.Viridis;
-      shade(this._bitmap, cmap.viridis, this._raw, this._min, this._max)	
-    } else {
-      this._shade = BitmapShading.Grayscale;
-      shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)
     }
+
+    else if(newShade == BitmapShading.Viridis){
+      this._shade = BitmapShading.Viridis;
+      shade(this._bitmap, cmap.viridis, this._raw, this._min, this._max)
+    }
+
     return this._bitmap
   }
 

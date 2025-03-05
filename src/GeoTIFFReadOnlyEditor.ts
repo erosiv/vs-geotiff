@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
-import { GeoTIFF } from './GeoTIFF'
+import { GeoTIFF, BitmapShading } from './GeoTIFF'
 
 //! GeoTIFFStatusBarInfo
 //! Static Status Bar Information Manager
@@ -228,8 +228,17 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		const commandIdShade = 'vs-geotiff.GeoTIFFInfo.shade';
 		context.subscriptions.push(vscode.commands.registerCommand(commandIdShade, () => {
 			if(this.SelectedDocument instanceof GeoTIFFDocument){
-				const bitmap = this.SelectedDocument._raw.reshade()
-				this.SelectedDocument._onDidChangeDocument.fire({content: bitmap._data});
+				const document = this.SelectedDocument;
+				const getQuickPick = vscode.window.showQuickPick(Object.values(BitmapShading), {
+					canPickMany: false,
+					placeHolder: "Select a Shading Method"
+				})
+				getQuickPick.then((value) => {
+					if(value){
+						const bitmap = document._raw.reshade(value)
+						document._onDidChangeDocument.fire({content: bitmap._data});
+					}
+				})
 			}
 		}));
 
