@@ -1,4 +1,17 @@
 import { DataArray } from "erosiv-tiff/lib/types";
+import * as cmap from "./cmap"
+
+export enum BitmapShading {
+  Grayscale = "Grayscale",
+  Turbo = "Turbo",
+  Viridis = "Viridis"
+}
+
+const ShadingMap = {
+  "Grayscale": cmap.grayscale,
+  "Viridis": cmap.viridis,
+  "Turbo": cmap.turbo
+}
 
 export class Bitmap {
 
@@ -43,42 +56,43 @@ export class Bitmap {
 
   }
 
-};
+  shade(shading: BitmapShading, data: DataArray, min: number, max: number): void {
 
-export function shade(bitmap: Bitmap, scheme: number[][], data: DataArray, min: number, max: number){
-
-  const scheme_size = scheme.length-1
-
-  for (let w = 0; w < bitmap._width; ++w) {
-    for (let h = 0; h < bitmap._height; ++h) {
-
-      const offset = Bitmap.header + (h * bitmap._width + w) * 4;
-      let val = data[h*bitmap._width + w];
-      val = (val - min)/(max - min)
-      if(isNaN(val)){
-        bitmap._data[offset + 0] = 0; // R value
-        bitmap._data[offset + 1] = 0; // G value
-        bitmap._data[offset + 2] = 0; // B value
-        bitmap._data[offset + 3] = 0;	// A value
-        continue;
+    const scheme = ShadingMap[shading]
+    const scheme_size = scheme.length-1
+  
+    for (let w = 0; w < this._width; ++w) {
+      for (let h = 0; h < this._height; ++h) {
+  
+        const offset = Bitmap.header + (h * this._width + w) * 4;
+        let val = data[h*this._width + w];
+        val = (val - min)/(max - min)
+        if(isNaN(val)){
+          this._data[offset + 0] = 0; // R value
+          this._data[offset + 1] = 0; // G value
+          this._data[offset + 2] = 0; // B value
+          this._data[offset + 3] = 0;	// A value
+          continue;
+        }
+  
+        let x = Math.max(0.0, Math.min(1.0, val))
+        let a = Math.floor(x*scheme_size)
+        let b = Math.min(scheme_size, a + 1)
+        let f = x*scheme_size - a
+  
+        let color = [	
+          scheme[a][0] + (scheme[b][0] - scheme[a][0]) * f,
+          scheme[a][1] + (scheme[b][1] - scheme[a][1]) * f,
+          scheme[a][2] + (scheme[b][2] - scheme[a][2]) * f
+        ];
+  
+        this._data[offset + 0] = 255*color[0];  // R value
+        this._data[offset + 1] = 255*color[1];  // G value
+        this._data[offset + 2] = 255*color[2];  // B value
+        this._data[offset + 3] = 255;					  // A value
+  
       }
-
-      let x = Math.max(0.0, Math.min(1.0, val))
-      let a = Math.floor(x*scheme_size)
-      let b = Math.min(scheme_size, a + 1)
-      let f = x*scheme_size - a
-
-      let color = [	
-        scheme[a][0] + (scheme[b][0] - scheme[a][0]) * f,
-        scheme[a][1] + (scheme[b][1] - scheme[a][1]) * f,
-        scheme[a][2] + (scheme[b][2] - scheme[a][2]) * f
-      ];
-
-      bitmap._data[offset + 0] = 255*color[0];  // R value
-      bitmap._data[offset + 1] = 255*color[1];  // G value
-      bitmap._data[offset + 2] = 255*color[2];  // B value
-      bitmap._data[offset + 3] = 255;					  // A value
-
     }
   }
-}
+
+};

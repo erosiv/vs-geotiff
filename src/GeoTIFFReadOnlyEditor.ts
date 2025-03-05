@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { Disposable, disposeAll } from './dispose';
 import { getNonce } from './util';
-import { GeoTIFF, BitmapShading } from './GeoTIFF'
+import { GeoTIFF } from './GeoTIFF'
+import { BitmapShading } from './Bitmap';
 
 //! GeoTIFFStatusBarInfo
 //! Static Status Bar Information Manager
@@ -28,7 +29,7 @@ class GeoTIFFStatusBarInfo {
 
 	public static updateStatusBar(geotiff: GeoTIFF): void {
 		
-		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) ${geotiff._shade}`;
+		GeoTIFFStatusBarInfo.itemColor.text = `$(symbol-color) ${geotiff.shading}`;
 		GeoTIFFStatusBarInfo.itemColor.show();
 
 		GeoTIFFStatusBarInfo.itemShape.text = `${geotiff.width}x${geotiff.height}`;
@@ -235,7 +236,8 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 				})
 				getQuickPick.then((value) => {
 					if(value){
-						const bitmap = document._raw.reshade(value)
+						const selected = value as keyof typeof BitmapShading;
+						const bitmap = document._raw.shade(BitmapShading[selected])
 						document._onDidChangeDocument.fire({content: bitmap._data});
 					}
 				})

@@ -1,14 +1,6 @@
 import * as tiff from 'erosiv-tiff'
 import { DataArray } from "erosiv-tiff/lib/types";
-import {Bitmap, shade} from './Bitmap'
-import * as cmap from "./cmap"
-
-export enum BitmapShading {
-  None = "None",
-  Grayscale = "Grayscale",
-  Turbo = "Turbo",
-  Viridis = "Viridis"
-}
+import {Bitmap, BitmapShading} from './Bitmap'
 
 export class GeoTIFF {
   
@@ -17,7 +9,7 @@ export class GeoTIFF {
   private readonly _min: number;
   private readonly _max: number;
   _bitmap: Bitmap;
-  public _shade: BitmapShading;
+  public shading: BitmapShading;
 
   constructor(source: Uint8Array | undefined){
 
@@ -42,8 +34,8 @@ export class GeoTIFF {
         this._max = Math.max(this._max, val)
       }
 
-      this._shade = BitmapShading.Grayscale;
-      shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)
+      this.shading = BitmapShading.Grayscale;
+      this._bitmap.shade(this.shading, this._raw, this._min, this._max)
 
     } else {
 
@@ -52,7 +44,7 @@ export class GeoTIFF {
       this._bitmap = new Bitmap(0, 0)
       this._min = 0.0
       this._max = 0.0
-      this._shade = BitmapShading.None
+      this.shading = BitmapShading.Grayscale
 
     }
 
@@ -69,21 +61,11 @@ export class GeoTIFF {
   // Shading Functions
   //
 
-  public reshade(newShade: string): Bitmap {
+  public shade(selected: BitmapShading): Bitmap {
 
-    if(newShade == BitmapShading.Grayscale){
-      this._shade = BitmapShading.Grayscale;
-      shade(this._bitmap, cmap.grayscale, this._raw, this._min, this._max)	
-    }
-
-    else if(newShade == BitmapShading.Turbo){
-      this._shade = BitmapShading.Turbo;
-      shade(this._bitmap, cmap.turbo, this._raw, this._min, this._max)	
-    }
-
-    else if(newShade == BitmapShading.Viridis){
-      this._shade = BitmapShading.Viridis;
-      shade(this._bitmap, cmap.viridis, this._raw, this._min, this._max)
+    if(selected){
+      this.shading = selected;
+      this._bitmap.shade(this.shading, this._raw, this._min, this._max)
     }
 
     return this._bitmap
