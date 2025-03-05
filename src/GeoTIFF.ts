@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import * as tiff from 'erosiv-tiff'
 import { DataArray } from "erosiv-tiff/lib/types";
 import {Bitmap, BitmapShading} from './Bitmap'
@@ -41,7 +42,8 @@ export class GeoTIFF {
         this._max = Math.max(this._max, val)
       }
 
-      this.shading = BitmapShading.Grayscale;
+      let setting = vscode.workspace.getConfiguration().get("vs-geotiff.defaultShading")
+      this.shading = setting as BitmapShading;
       this._bitmap.shade(this.shading, this._raw, this._min, this._max)
 
     } else {

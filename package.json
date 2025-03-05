@@ -38,7 +38,43 @@
 				"command": "vsGeotiff.GeoTIFF.shade",
 				"title": "Shade .TIFF File"
 			}
-		]
+		],
+		"configuration": {
+      "title": "GeoTIFF",
+      "properties": {
+				"vs-geotiff.defaultShading": {
+					"type": "string",
+					"enum": [
+						"Grayscale",
+						"Turbo",
+						"Viridis",
+						"Cividis",
+						"Hot",
+						"Cool",
+						"HSV",
+						"Terrain",
+						"GISTEarth",
+						"GNUPlot",
+						"Rainbow"
+					],
+					"enumItemLabels": [
+						"Grayscale",
+						"Turbo",
+						"Viridis",
+						"Cividis",
+						"Hot",
+						"Cool",
+						"HSV",
+						"Terrain",
+						"GIST Earth",
+						"GNU Plot",
+						"Rainbow"
+					],
+					"default": "Grayscale",
+					"description": "Default .TIFF Shading Scheme"
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
