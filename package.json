@@ -32,6 +32,12 @@
 					}
 				]
 			}
+		],
+		"commands": [
+			{
+				"command": "vsGeotiff.GeoTIFF.shade",
+				"title": "Shade .TIFF File"
+			}
 		]
 	},
 	"scripts": {

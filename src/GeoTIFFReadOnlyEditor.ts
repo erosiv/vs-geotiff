@@ -230,7 +230,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 		this.quickPick = vscode.window.createQuickPick()
 		this.quickPick.placeholder = "Select a Shading Method"
 
-		const commandIdShade = 'vs-geotiff.GeoTIFFInfo.shade';
+		const commandIdShade = 'vsGeotiff.GeoTIFF.shade';
 		context.subscriptions.push(vscode.commands.registerCommand(commandIdShade, () => {
 			if(this.SelectedDocument instanceof GeoTIFFDocument){
 
