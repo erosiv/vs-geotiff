@@ -148,6 +148,7 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 	private readonly webviews = new WebviewCollection();
 	private static OpenViewURI = new Map<string, GeoTIFFDocument>();
 	private static SelectedDocument: GeoTIFFDocument | undefined;
+	private static quickPick: vscode.QuickPick<vscode.QuickPickItem>;
 
 	constructor(private readonly _context: vscode.ExtensionContext){}
 
@@ -226,22 +227,41 @@ export class GeoTIFFReadOnlyEditorProvider implements vscode.CustomReadonlyEdito
 
 		// Reshade Bitmap Command
 
+		this.quickPick = vscode.window.createQuickPick()
+		this.quickPick.placeholder = "Select a Shading Method"
+
 		const commandIdShade = 'vs-geotiff.GeoTIFFInfo.shade';
 		context.subscriptions.push(vscode.commands.registerCommand(commandIdShade, () => {
 			if(this.SelectedDocument instanceof GeoTIFFDocument){
+
 				const document = this.SelectedDocument;
-				const getQuickPick = vscode.window.showQuickPick(Object.values(BitmapShading), {
-					canPickMany: false,
-					placeHolder: "Select a Shading Method"
+
+				let items: vscode.QuickPickItem[] = [];
+				let active: vscode.QuickPickItem[] = [];
+			
+				Object.values(BitmapShading).forEach((shading) => {
+					const item = {label: shading};
+					items.push(item)
+					if(document._raw.shading == shading){
+						active.push(item)
+					}
 				})
-				getQuickPick.then((value) => {
+			
+				this.quickPick.items = items;
+				this.quickPick.activeItems = active;
+
+				this.quickPick.onDidAccept(() => {
+					const value = this.quickPick.selectedItems[0]
 					if(value){
-						const selected = value as keyof typeof BitmapShading;
+						const selected = value.label as keyof typeof BitmapShading;
 						const bitmap = document._raw.shade(BitmapShading[selected])
 						document._onDidChangeDocument.fire({content: bitmap._data});
 					}
+					this.quickPick.hide()
 				})
+				this.quickPick.show()	
 			}
+
 		}));
 
 		GeoTIFFStatusBarInfo.itemColor.command = commandIdShade;
