@@ -4,13 +4,29 @@ import * as cmap from "./cmap"
 export enum BitmapShading {
   Grayscale = "Grayscale",
   Turbo = "Turbo",
-  Viridis = "Viridis"
+  Viridis = "Viridis",
+  Cividis = "Cividis",
+  Hot = "Hot",
+  Cool = "Cool",
+  HSV = "HSV",
+  Terrain = "Terrain",
+  GISTEarth = "GISTEarth",
+  GNUPlot = "GNUPlot",
+  Rainbow = "Rainbow"
 }
 
 const ShadingMap = {
   "Grayscale": cmap.grayscale,
+  "Turbo": cmap.turbo,
   "Viridis": cmap.viridis,
-  "Turbo": cmap.turbo
+  "Cividis": cmap.cividis,
+  "Hot": cmap.hot,
+  "Cool": cmap.cool,
+  "HSV": cmap.hsv,
+  "Terrain": cmap.terrain,
+  "GISTEarth": cmap.gist_earth,
+  "GNUPlot": cmap.gnuplot,
+  "Rainbow": cmap.rainbow
 }
 
 export class Bitmap {
