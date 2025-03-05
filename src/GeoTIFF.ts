@@ -19,6 +19,9 @@ export class GeoTIFF {
       const kbytes = source.length/1000;
       const width = ifd.width;
       const height = ifd.height;
+      
+      let nodata = ifd.get('GDAL_NODATA')
+      if(!nodata) nodata = NaN;
 
       this._raw = ifd.data;
       this._bytes = kbytes;
@@ -27,8 +30,12 @@ export class GeoTIFF {
       this._min = Number.MAX_VALUE
       this._max = Number.MIN_VALUE
       for(let p = 0; p < width*height; ++p){
-        const val = ifd.data[p];
-        if(isNaN(val)) 
+        let val = ifd.data[p];
+        if(val == nodata){
+          val = NaN; // set to nan for bitmap shading
+          ifd.data[p] = NaN;
+        }
+        if(isNaN(val))
           continue;
         this._min = Math.min(this._min, val)
         this._max = Math.max(this._max, val)

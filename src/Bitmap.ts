@@ -82,7 +82,6 @@ export class Bitmap {
   
         const offset = Bitmap.header + (h * this._width + w) * 4;
         let val = data[h*this._width + w];
-        val = (val - min)/(max - min)
         if(isNaN(val)){
           this._data[offset + 0] = 0; // R value
           this._data[offset + 1] = 0; // G value
@@ -90,7 +89,8 @@ export class Bitmap {
           this._data[offset + 3] = 0;	// A value
           continue;
         }
-  
+        
+        val = (val - min)/(max - min)
         let x = Math.max(0.0, Math.min(1.0, val))
         let a = Math.floor(x*scheme_size)
         let b = Math.min(scheme_size, a + 1)
