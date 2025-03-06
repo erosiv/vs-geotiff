@@ -1,71 +1,52 @@
-# vs-geotiff README
+# vs-geotiff
 
-This is the README for your extension "vs-geotiff". After writing up a brief description, we recommend including the following sections.
+vs-geotiff is a Visual Studio Code extension for viewing `TIFF` and `GeoTIFF` data natively. This extension is primarily intended for displaying floating point data.
+
+This extension was written because existing extensions didn't support floating point `TIFF` data and were unmaintained.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Image information in statusbar
 
-For example if there is an image subfolder under your extension project workspace:
+![Image Info in Statusbar](image/info.png)
 
-\!\[feature X\]\(images/feature-x.png\)
+- Renders `TIFF` and `GeoTIFF` files as an editor, with correct alpha clipping of `NaN` and `GDAL_NODATA` values.
+- Supports `Float32`, `Float64` and Stripped / Tiled Layout TIFF Files
+- Zoom and pan controls, with `CTRL+Scroll` and mouse dragging
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+<p align="center">
+<img alt="Clipped TIFF Render" src="image/render_clip.png" width="50%" align="center"/>
+</p>
 
-## Requirements
+- Supports various shading schemes for different applications
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+![Shading Schemes](image/shading.png)
+
+<p align="center">
+<img alt="Shading Grayscale" src="image/shade_grayscale.png" width="24%" align="center"/>
+<img alt="Shading Turbo" src="image/shade_turbo.png" width="24%" align="center"/>
+<img alt="Shading Viridis" src="image/shade_viridis.png" width="24%" align="center"/>
+<img alt="Shading Cividis" src="image/shade_cividis.png" width="24%" align="center"/>
+<img alt="Shading Cool" src="image/shade_cool.png" width="24%" align="center"/>
+<img alt="Shading HSV" src="image/shade_hsv.png" width="24%" align="center"/>
+<img alt="Shading Terrain" src="image/shade_terrain.png" width="24%" align="center"/>
+<img alt="Shading Rainbow" src="image/shade_rainbow.png" width="24%" align="center"/>
+</p>
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+* `vs-geotiff.defaultShading`: Default shading scheme setting
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+vs-geotiff currently doesn't render RGB TIFF data correctly. Pull requests are welcome. 
+
+Some tiff files can take longer to load, due to the javascript native TIFF loading library.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+Initial Release
