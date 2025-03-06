@@ -15,7 +15,7 @@ This extension was written because existing extensions didn't support floating p
 - Zoom and pan controls, with `CTRL+Scroll` and mouse dragging
 
 <p align="center">
-<img alt="Clipped TIFF Render" src="image/render_clip.png" width="50%" align="center"/>
+<img alt="Clipped TIFF Render" src="image/screenshot.png" width="50%" align="center"/>
 </p>
 
 - Supports various shading schemes for different applications
