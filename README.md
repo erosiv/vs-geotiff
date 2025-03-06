@@ -39,6 +39,10 @@ This extension contributes the following settings:
 
 * `vs-geotiff.defaultShading`: Default shading scheme setting
 
+## Installing
+
+This extension is currently not available on the marketplace. You can install it using the `.vsix` file found in the current release in this repository.
+
 ## Known Issues
 
 vs-geotiff currently doesn't render RGB TIFF data correctly. Pull requests are welcome. 
