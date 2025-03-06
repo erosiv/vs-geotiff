@@ -43,6 +43,12 @@ This extension contributes the following settings:
 
 This extension is currently not available on the marketplace. You can install it using the `.vsix` file found in the current release in this repository.
 
+Download the `.vsix` file from the releases section and run (on the correct filename):
+
+```bash
+code --install-extension /path/to/vs-geotiff-X.X.X.vsix
+```
+
 ## Known Issues
 
 vs-geotiff currently doesn't render RGB TIFF data correctly. Pull requests are welcome. 
